@@ -130,10 +130,7 @@ package edu.yu.cs.com1320.project.stage1.impl;
              return false;
          }
          DocumentImpl t = (DocumentImpl) obj;
-         if(t.hashCode() == this.hashCode()){
-             return true;
-         }
-         return false;
+         return t.hashCode() == this.hashCode();
      }
 
      /**

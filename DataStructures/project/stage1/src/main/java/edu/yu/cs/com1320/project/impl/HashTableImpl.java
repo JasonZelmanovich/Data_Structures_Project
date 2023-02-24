@@ -92,8 +92,7 @@ package edu.yu.cs.com1320.project.impl;
 
      private int hash(Key k){
          int code = k.hashCode();
-         int index = code % this.entries.length;
-         return index;
+         return code % this.entries.length;
      }
 
      public class CustomLinkedList<Key,Value> {
