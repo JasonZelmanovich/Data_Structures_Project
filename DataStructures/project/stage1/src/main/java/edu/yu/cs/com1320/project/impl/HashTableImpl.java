@@ -91,15 +91,14 @@ package edu.yu.cs.com1320.project.impl;
      }
 
      private int hash(Key k){
-         int code = k.hashCode();
-         return code % this.entries.length;
+         return (k.hashCode() & 0x7fffffff) % this.entries.length;
      }
 
-     public class CustomLinkedList<Key,Value> {
+     private class CustomLinkedList<Key,Value> {
          private final Key k;
          private Value v;
          private CustomLinkedList next = null;
-         public CustomLinkedList(Key k, Value v) {
+         private CustomLinkedList(Key k, Value v) {
              this.k = k;
              this.v = v;
          }

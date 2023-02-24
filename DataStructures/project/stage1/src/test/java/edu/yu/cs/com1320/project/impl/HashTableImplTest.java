@@ -8,8 +8,9 @@ package edu.yu.cs.com1320.project.impl;
 
  class HashTableImplTest {
      HashTableImpl<Integer,String> c =  new HashTableImpl<>();
+     HashTableImpl<String,String> f = new HashTableImpl<>();
      @Test
-     void put() {
+     void putIntString() {
          String s = c.put(19,"Jason");
          assertEquals(s,null);
          s = c.put(19,"changed Value");
@@ -24,6 +25,16 @@ package edu.yu.cs.com1320.project.impl;
      }
 
      @Test
+     void putStringString() {
+         String s = f.put("Shalom","Hello");
+         assertNull(s);
+         s = f.put("Shalom","UpdatedHello");
+         assertEquals(s,"Hello");
+         s = f.get("Shalom");
+         assertEquals(s,"UpdatedHello");
+     }
+
+     @Test
      void get() {
          c.put(19,"Jason");
          c.put(19,"changed Value");
@@ -34,15 +45,5 @@ package edu.yu.cs.com1320.project.impl;
          assertEquals(c.get(49),"Target");
          c.put(49,null);
          assertEquals(c.get(49),null);
-     }
-
-     @Test
-     void showcase(){
-         c.put(19,"Jason");
-         c.put(19,"changed Value");
-         c.put(36,"YU");
-         c.put(49,"Target");
-         c.put(49,null);
-         System.out.println(c.get(49));
      }
  }
