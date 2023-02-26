@@ -68,6 +68,33 @@ package edu.yu.cs.com1320.project.impl;
          return null;
      }
 
+     /**
+      * @param o the key whose presence in the hashtabe we are inquiring about
+      * @return true if the given key is present in the hashtable as a key, false if not
+      * @throws NullPointerException if the specified key is null
+      */
+     @Override
+     public boolean containsKey(Object o) {
+         if(o == null){
+             throw new NullPointerException();
+         }
+         Key k = (Key) o;
+         int index = hash(k);
+         CustomLinkedList<Key, Value> temp = entries[index];
+         if(temp != null){
+             if(temp.getKey().equals(k)){
+                 return true;
+             }
+             while(temp.getNext() != null) {
+                 temp = temp.getNext();
+                 if(temp.getKey().equals(k)){
+                     return true;
+                 }
+             }
+         }
+         return false;
+     }
+
      private Value delete(Key k, int index) {
          CustomLinkedList<Key, Value> temp = entries[index];
          if(temp != null){
