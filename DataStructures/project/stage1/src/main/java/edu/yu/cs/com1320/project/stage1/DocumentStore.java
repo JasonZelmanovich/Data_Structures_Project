@@ -14,11 +14,13 @@ public interface DocumentStore
         TXT,BINARY
     };
     /**
-     * @param input the document being put
-     * @param uri unique identifier for the document
+     * @param input  the document being put
+     * @param uri    unique identifier for the document
      * @param format indicates which type of document format is being passed
-     * @return if there is no previous doc at the given URI, return 0. If there is a previous doc, return the hashCode of the previous doc. If InputStream is null, this is a delete, and thus return either the hashCode of the deleted doc or 0 if there is no doc to delete.
-     * @throws IOException if there is an issue reading input
+     * @return if there is no previous doc at the given URI, return 0. If there is a previous doc,
+     * return the hashCode of the previous doc. If InputStream is null, this is a delete,
+     * and thus return either the hashCode of the deleted doc or 0 if there is no doc to delete.
+     * @throws IOException              if there is an issue reading input
      * @throws IllegalArgumentException if uri or format are null
      */
     int put(InputStream input, URI uri, DocumentFormat format) throws IOException;

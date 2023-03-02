@@ -1,85 +1,97 @@
 package edu.yu.cs.com1320.project.stage1.impl;
 
- import edu.yu.cs.com1320.project.stage1.DocumentStore;
- import org.junit.jupiter.api.AfterEach;
- import org.junit.jupiter.api.BeforeEach;
- import org.junit.jupiter.api.Test;
+import edu.yu.cs.com1320.project.stage1.DocumentStore;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
- import java.io.ByteArrayInputStream;
- import java.io.IOException;
- import java.io.InputStream;
- import java.net.URI;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
 
- import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.*;
 
- class DocumentStoreImplTest {
-     DocumentStoreImpl dstore;
-     URI b, e;
-     String a, d;
-     DocumentStore.DocumentFormat c, f;
-     InputStream s, g;
+class DocumentStoreImplTest {
+    DocumentStoreImpl dstore;
+    URI u1, u2;
+    String jas, ste;
+    DocumentStore.DocumentFormat text, binary;
+    InputStream stream2, stream1;
 
-     @BeforeEach
-     void setUp() {
-         a = "Jason";
-         b = URI.create(a);
-         g = new ByteArrayInputStream(a.getBytes());
-         c = DocumentStore.DocumentFormat.TXT;
+    @BeforeEach
+    void setUp() {
+        jas = "Jason";
+        u1 = URI.create(jas);
+        stream1 = new ByteArrayInputStream(jas.getBytes());
+        text = DocumentStore.DocumentFormat.TXT;
 
-         d = "Steve";
-         s = new ByteArrayInputStream(d.getBytes());
-         e = URI.create(d);
-         f = DocumentStore.DocumentFormat.BINARY;
+        ste = "Steve";
+        stream2 = new ByteArrayInputStream(ste.getBytes());
+        u2 = URI.create(ste);
+        binary = DocumentStore.DocumentFormat.BINARY;
 
-         dstore = new DocumentStoreImpl();
-     }
+        dstore = new DocumentStoreImpl();
+    }
 
-     @AfterEach
-     void tearDown() {
-         dstore = null;
-     }
+    @AfterEach
+    void tearDown() {
+        dstore = null;
+    }
 
-     @Test
-     void put() {
-         //adding with nothing prior
-         try {
-             assertEquals(dstore.put(g, b, c), 0);
-         } catch (IOException e) {
-             e.printStackTrace();
-         }
+    @Test
+    void put() throws IOException {
 
-         try {
-             assertEquals(dstore.put(s, e, f), 0);
-         } catch (IOException e) {
-             e.printStackTrace();
-         }
+        assertEquals(dstore.put(stream1, u1, text), 0); // first entry for uri so returns 0
+        assertEquals(dstore.get(u1).getDocumentTxt(), "Jason");// Input Stream passed in TEXT: "Jason"
+        assertNull(dstore.get(u1).getDocumentBinaryData());
+        assertNotEquals(dstore.put(stream2, u1, binary), 0);// second entry returns hashcode of previous doc in table i.e. NOT ZERO
+        assertArrayEquals(dstore.get(u1).getDocumentBinaryData(), ste.getBytes());//checks binary array returns values for the string: "Steve"
+        assertNull(dstore.get(u1).getDocumentTxt());
 
-         //adding with a doc prior
-         int code = dstore.get(b).hashCode();
-         String t = "replaced";
-         InputStream str = new ByteArrayInputStream(t.getBytes());
-         try {
-             assertEquals(dstore.put(str, b, c), code);
-         } catch (IOException e) {
-             e.printStackTrace();
-         }
+        stream2 = new ByteArrayInputStream(ste.getBytes());
+        assertEquals(dstore.put(stream2, u2, binary), 0);
 
-         code = dstore.get(e).hashCode();
-         str = new ByteArrayInputStream(t.getBytes());
-         try {
-             assertEquals(dstore.put(str, e, f), code);
-         } catch (IOException e) {
-             e.printStackTrace();
-         }
 
-     }
+        //adding with a doc prior
+        int code = dstore.get(u1).hashCode();
+        String t = "replaced";
+        InputStream str = new ByteArrayInputStream(t.getBytes());
 
-     @Test
-     void get() {
+        assertEquals(dstore.put(str, u1, text), code);
+        assertEquals(dstore.get(u1).getDocumentTxt(), "replaced");
+        assertNull(dstore.get(u1).getDocumentBinaryData());
 
-     }
 
-     @Test
-     void delete() {
-     }
- }
+        code = dstore.get(u2).hashCode();
+        str = new ByteArrayInputStream(t.getBytes());
+
+        assertEquals(dstore.put(str, u2, binary), code);
+        assertArrayEquals(dstore.get(u2).getDocumentBinaryData(), t.getBytes());
+        assertNull(dstore.get(u2).getDocumentTxt());
+    }
+
+    @Test
+    void get() throws IOException {
+        assertEquals(dstore.put(stream1, u1, binary), 0);
+        assertArrayEquals(dstore.get(u1).getDocumentBinaryData(), jas.getBytes());
+        assertNull(dstore.get(u1).getDocumentTxt());
+        assertEquals(dstore.put(stream2, u2, text), 0);
+        assertEquals(dstore.get(u2).getDocumentTxt(), ste);
+        assertNull(dstore.get(u2).getDocumentBinaryData());
+
+    }
+
+    @Test
+    void delete() throws IOException {
+        assertEquals(dstore.put(stream1, u1, binary), 0);
+        assertFalse(dstore.delete(URI.create("foop")));
+        assertTrue(dstore.delete(u1));
+        assertFalse(dstore.delete(u1));
+
+        assertEquals(dstore.put(stream2, u2, text), 0);
+        assertFalse(dstore.delete(URI.create("testing123")));
+        assertTrue(dstore.delete(u2));
+        assertFalse(dstore.delete(u2));
+    }
+}
