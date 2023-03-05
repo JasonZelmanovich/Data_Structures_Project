@@ -130,7 +130,7 @@ public class HashTableImpl<Key, Value> implements HashTable {
         private value v;
         private CustomLinkedList next = null;
 
-        private CustomLinkedList(key k, value v) {
+        public CustomLinkedList(key k, value v) {
             this.k = k;
             this.v = v;
         }
