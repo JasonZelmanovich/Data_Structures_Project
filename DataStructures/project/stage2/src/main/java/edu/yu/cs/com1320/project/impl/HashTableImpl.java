@@ -68,10 +68,9 @@ public class HashTableImpl<Key, Value> implements HashTable {
                 this.numElements++;
                 return null;
             }
-        } else {
-            entries[index] = new CustomLinkedList<>(currentK, currentV);
-            this.numElements++;
         }
+        entries[index] = new CustomLinkedList<>(currentK, currentV);
+        this.numElements++;
         return null;
     }
 

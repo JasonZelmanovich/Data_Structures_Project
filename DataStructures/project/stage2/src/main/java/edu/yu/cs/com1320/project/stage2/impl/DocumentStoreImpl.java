@@ -44,9 +44,19 @@ public class DocumentStoreImpl implements DocumentStore {
             return temp == null ? 0 : temp.hashCode();
         }
         byte[] read = input.readAllBytes();
-        switch (format) {
+        return storeProperFormat(format, read, uri);
+    }
+
+    /**
+     * @param f      - the requested format of the ddocument for the input to be stored in
+     * @param bArray - the byte array of data being stored
+     * @param uri    - the proper uri associated with the given document
+     * @return the old hashcode if there was one, if no previous value return 0
+     */
+    private int storeProperFormat(DocumentFormat f, byte[] bArray, URI uri) {
+        switch (f) {
             case TXT -> {
-                String s = new String(read);
+                String s = new String(bArray);
                 DocumentImpl doc1 = new DocumentImpl(uri, s);
                 DocumentImpl old1 = hashTable.put(uri, doc1);
                 if (old1 != null) {
@@ -60,7 +70,7 @@ public class DocumentStoreImpl implements DocumentStore {
                 return old1 == null ? 0 : old1.hashCode();
             }
             case BINARY -> {
-                DocumentImpl doc2 = new DocumentImpl(uri, read);
+                DocumentImpl doc2 = new DocumentImpl(uri, bArray);
                 DocumentImpl old2 = hashTable.put(uri, doc2);
                 if (old2 != null) {
                     Function undoReplaceLambda = (u) -> hashTable.put(u, old2) == doc2;
