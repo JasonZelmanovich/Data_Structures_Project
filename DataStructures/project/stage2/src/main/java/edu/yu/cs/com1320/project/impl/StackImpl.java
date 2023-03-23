@@ -3,7 +3,7 @@ package edu.yu.cs.com1320.project.impl;
 import edu.yu.cs.com1320.project.Stack;
 
 public class StackImpl<T> implements Stack<T> {
-    CustomLinkedList<T> head;
+    private CustomLinkedList<T> head;
     private int size;
 
     public StackImpl() {

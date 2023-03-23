@@ -104,12 +104,40 @@ class DocumentStoreImplTest {
         dstore.undo();
         assertNotNull(dstore.get(u1));
 
-        dstore.put(stream2, u1, binary);
-        dstore.undo();
+        dstore.put(stream2, u1, text);
+        InputStream in = new ByteArrayInputStream(jas.getBytes());
+        dstore.put(in, u2, text);
+        assertEquals(dstore.get(u1).getDocumentTxt(), "Steve");
+        dstore.undo(u1);
+        assertEquals(dstore.get(u1).getDocumentTxt(), "Jason");
+        dstore.undo(u1);
+        assertEquals(dstore.get(u2).getDocumentTxt(), "Jason");
+        assertThrows(IllegalStateException.class, () -> {
+            dstore.undo(u1);
+        });
+        assertDoesNotThrow(() -> {
+            dstore.undo(u2);
+        });
+        assertThrows(IllegalStateException.class, () -> {
+            dstore.undo();
+        });
 
-        while (dstore.cmdStack.peek() != null) {
-            System.out.println(dstore.cmdStack.pop().toString());
+        URI[] uriArray = new URI[24];
+        String k = "";
+        for (int i = 65; i <= 88; i++) {
+            k += (char) i;
+            URI u = URI.create(k);
+            InputStream stream = new ByteArrayInputStream(k.getBytes());
+            dstore.put(stream, u, DocumentStore.DocumentFormat.TXT);
+            uriArray[i - 65] = u;
         }
+        assertNotNull(dstore.get(uriArray[0]));
+
+        dstore.undo(uriArray[1]);
+
+        assertNotNull(dstore.get(uriArray[0]));
+
+        assertNull(dstore.get(uriArray[1]));
     }
 
 }

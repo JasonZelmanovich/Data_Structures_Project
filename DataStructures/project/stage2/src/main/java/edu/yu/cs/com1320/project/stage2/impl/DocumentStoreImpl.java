@@ -12,7 +12,7 @@ import java.net.URI;
 import java.util.function.Function;
 
 public class DocumentStoreImpl implements DocumentStore {
-    public StackImpl<Command> cmdStack;
+    private StackImpl<Command> cmdStack;
     private HashTableImpl<URI, DocumentImpl> hashTable;
 
     public DocumentStoreImpl() {
@@ -132,6 +132,7 @@ public class DocumentStoreImpl implements DocumentStore {
      */
     @Override
     public void undo(URI uri) throws IllegalStateException {
+        boolean found = false;
         if (cmdStack.size() == 0) {
             throw new IllegalStateException("No Actions to be undone");
         }
@@ -139,6 +140,7 @@ public class DocumentStoreImpl implements DocumentStore {
         while (cmdStack.peek() != null) {
             if (cmdStack.peek().getUri() == uri) {
                 cmdStack.pop().undo();
+                found = true;
                 break;
             } else {
                 tempStack.push(cmdStack.pop());
@@ -146,6 +148,9 @@ public class DocumentStoreImpl implements DocumentStore {
         }
         while (tempStack.peek() != null) {
             cmdStack.push(tempStack.pop());
+        }
+        if (!found) {
+            throw new IllegalStateException("No Actions to be undone");
         }
     }
 }
