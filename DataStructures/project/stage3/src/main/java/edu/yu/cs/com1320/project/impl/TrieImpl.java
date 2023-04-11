@@ -37,6 +37,7 @@ public class TrieImpl<Value> implements Trie {
         //we've reached the last node in the key,
         //set the value for the key and return the node
         if (d == key.length()) {
+            if(x.val == null) x.val = new HashSet<>();
             x.val.add(val);
             return x;
         }
