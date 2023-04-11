@@ -59,7 +59,7 @@ public interface DocumentStore
     List<Document> search(String keyword);
 
     /**
-     * Retrieve all documents whose text starts with the given prefix
+     * Retrieve all documents that contain text which starts with the given prefix
      * Documents are returned in sorted, descending order, sorted by the number of times the prefix appears in the document.
      * Search is CASE SENSITIVE.
      * @param keywordPrefix
