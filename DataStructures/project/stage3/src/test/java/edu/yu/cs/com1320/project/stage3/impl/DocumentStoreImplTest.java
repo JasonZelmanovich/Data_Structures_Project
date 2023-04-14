@@ -140,4 +140,22 @@ class DocumentStoreImplTest {
         assertNull(dstore.get(uriArray[1]));
     }
 
+    @Test
+    void search() {
+        DocumentImpl d1 = new DocumentImpl(URI.create("d1"),"Java java Jason. Jason Java?"); //Jason:2 Java:2 java:1
+        DocumentImpl d2 = new DocumentImpl(URI.create("d2"),"Jason!@ Jason#$ java java-java Java"); //Jason:2 java:1 java-java:1 Java:1
+        DocumentImpl d3 = new DocumentImpl(URI.create("d3"),"Jason Jason Jason Jason java java java Java Java Pickles");
+    }
+
+    @Test
+    void searchByPrefix() {
+    }
+
+    @Test
+    void deleteAll() {
+    }
+
+    @Test
+    void deleteAllWithPrefix() {
+    }
 }

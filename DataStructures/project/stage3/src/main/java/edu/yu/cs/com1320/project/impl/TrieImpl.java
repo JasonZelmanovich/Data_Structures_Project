@@ -80,9 +80,6 @@ public class TrieImpl<Value> implements Trie {
             throw new IllegalArgumentException("String 'key' or comparator was NULL");
         }
         ArrayList<Value> valuesList = new ArrayList<>();
-        if (comparator == null) {
-            throw new IllegalArgumentException();
-        }
         Node n = get(root, key, 0);
         if (n == null || n.val == null) {
             return valuesList;
@@ -186,6 +183,9 @@ public class TrieImpl<Value> implements Trie {
         if (x != null && x.val.contains(val)) {
             tbd = (Value) val;
             x.val.remove(val);
+            if(x.val.size() == 0){
+                this.root = delete(this.root, key, 0);
+            }
         }
         return tbd;
     }
