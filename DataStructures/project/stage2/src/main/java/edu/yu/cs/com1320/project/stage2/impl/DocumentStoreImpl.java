@@ -62,7 +62,6 @@ public class DocumentStoreImpl implements DocumentStore {
                 if (old1 != null) {
                     Function undoReplaceLambda = (u) -> hashTable.put(u, old1) == doc1;
                     cmdStack.push(new Command(uri, undoReplaceLambda));
-
                 } else {
                     Function undoNewLambda = (u) -> hashTable.put(u, null) == doc1;
                     cmdStack.push(new Command(uri, undoNewLambda));

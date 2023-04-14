@@ -153,9 +153,19 @@ public class DocumentStoreImpl implements DocumentStore {
         if (!hashTable.containsKey(uri)) {
             return false;
         } else {
+            //delete and create undo lambda for doc to be deleted from the hashtable
             Document temp = hashTable.put(uri, null);
-            Function undoDeleteLambda = (u) -> hashTable.put(u, temp) == null;
+            for (String w : temp.getWords()) {
+                trie.delete(w, temp);
+            }
+            Function undoDeleteLambda = (u) -> {
+                for (String w : temp.getWords()) {
+                    trie.put(w, temp);
+                }
+                return hashTable.put(u, temp) == null;
+            };
             cmdStack.push(new GenericCommand<URI>(uri, undoDeleteLambda));
+            //delete and create undo lambda for doc to be deleted from the trie
             return true;
         }
     }
@@ -185,16 +195,18 @@ public class DocumentStoreImpl implements DocumentStore {
         if (cmdStack.size() == 0) throw new IllegalStateException("No Actions to be undone");
         StackImpl<Undoable> tempStack = new StackImpl<>();
         while (cmdStack.peek() != null) {
-            if (cmdStack.peek() instanceof GenericCommand<?>) { // check instance adn get target
+            if (cmdStack.peek() instanceof GenericCommand<?>) { // check instance and get target
                 GenericCommand<URI> temp = (GenericCommand<URI>) cmdStack.peek();
-                if(temp.getTarget() == uri){
+                if (temp.getTarget() == uri) {
                     cmdStack.pop().undo();
                     found = true;
                     break;
-                }else{tempStack.push(cmdStack.pop());}
-            }else{
+                } else {
+                    tempStack.push(cmdStack.pop());
+                }
+            } else {
                 CommandSet<URI> temp = (CommandSet<URI>) cmdStack.peek();
-                if(temp.containsTarget(uri)){
+                if (temp.containsTarget(uri)) {
                     temp.undo(uri);
                     if(temp.size() == 0){
                         cmdStack.pop();
@@ -309,6 +321,29 @@ public class DocumentStoreImpl implements DocumentStore {
      */
     @Override
     public Set<URI> deleteAllWithPrefix(String keywordPrefix) {
-        return null;
+        Set<Document> docsToBeRemoved = trie.deleteAllWithPrefix(keywordPrefix);
+        Set<URI> docKeys = new HashSet<>();
+        if (docsToBeRemoved.size() == 0) {
+            return Collections.emptySet();
+        }
+        for (Document doc : docsToBeRemoved) {
+            for (String w : doc.getWords()) {
+                trie.delete(w, doc);
+            }
+            docKeys.add(doc.getKey());
+            this.hashTable.put(doc.getKey(), null);
+        }
+        CommandSet<URI> cmdSet = new CommandSet<>();
+        for (Document doc : docsToBeRemoved) {
+            for (String w : doc.getWords()) {
+                Function undoDeletion = (u) -> {
+                    trie.put(w, doc);
+                    return this.hashTable.put(u, doc) == null;
+                };
+                cmdSet.addCommand(new GenericCommand<URI>(doc.getKey(), undoDeletion));
+            }
+        }//push the CommandSet on to the stack
+        cmdStack.push(cmdSet);
+        return docKeys;
     }
 }
