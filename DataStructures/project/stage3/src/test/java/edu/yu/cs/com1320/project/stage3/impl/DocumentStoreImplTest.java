@@ -1,5 +1,6 @@
 package edu.yu.cs.com1320.project.stage3.impl;
 
+import edu.yu.cs.com1320.project.stage3.Document;
 import edu.yu.cs.com1320.project.stage3.DocumentStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,18 +10,19 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class DocumentStoreImplTest {
     DocumentStoreImpl dstore;
-    URI u1, u2;
-    String jas, ste;
+    URI u1, u2,u3,u4,u5,u6;
+    String jas, ste, text1, text2, text3, text4;
     DocumentStore.DocumentFormat text, binary;
-    InputStream stream2, stream1;
+    InputStream stream2, stream1, stream3, stream4, stream5, stream6;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws IOException {
         jas = "Jason";
         u1 = URI.create(jas);
         stream1 = new ByteArrayInputStream(jas.getBytes());
@@ -32,6 +34,28 @@ class DocumentStoreImplTest {
         binary = DocumentStore.DocumentFormat.BINARY;
 
         dstore = new DocumentStoreImpl();
+
+        //Doc 1
+        text1 = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin eget urna nulla. Interdum et malesuada fames ac ante ipsum primis in faucibus. Aenean eu leo non turpis auctor dapibus. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. In volutpat maximus lectus, quis tincidunt leo rutrum nec. Aenean sit amet sollicitudin leo, non ultricies nunc. Sed tempor a est non feugiat. Sed molestie, purus ac cursus pellentesque, ex ligula dictum enim, quis volutpat magna nisl ac enim. Duis consectetur, lectus in tempus rhoncus, sapien ante ullamcorper nulla, quis venenatis lacus massa ut sapien. Phasellus dignissim mauris lacus, quis consequat turpis vestibulum at";
+        u3 = URI.create("text1");
+        stream3 = new ByteArrayInputStream(text1.getBytes());
+
+        text2 = "Etiam consectetur mollis fringilla. Donec eros eros, accumsan non pretium euismod, ultrices sagittis velit. Pellentesque rhoncus consectetur nibh et commodo. Maecenas ut volutpat nisl, et vehicula ante. Cras dignissim urna fringilla enim feugiat aliquam. Nam vitae orci fermentum, condimentum nisl at, rhoncus velit. Fusce quis placerat erat, eu maximus nunc. Aenean vestibulum mi eget dui congue, eu lobortis diam volutpat. In placerat tortor vel metus sagittis hendrerit. Mauris tempor consectetur ligula vitae venenatis. Nulla interdum justo orci, eu scelerisque felis placerat vel. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Phasellus quam arcu, maximus non interdum ac, commodo ac sapien.";
+        u4 = URI.create("text2");
+        stream4 = new ByteArrayInputStream(text2.getBytes());
+
+        text3 = "Sed sit amet nibh in tellus rutrum posuere. Suspendisse ornare odio augue, nec fermentum ligula pretium eget. Maecenas in turpis sed elit tristique sollicitudin quis eget nulla. Vestibulum odio tortor, posuere a diam nec, elementum fermentum mi. Praesent mattis feugiat lorem ut finibus. Quisque velit massa, feugiat sit amet egestas non, pretium a lorem. Integer sed massa bibendum, ornare ligula a, fringilla est. Maecenas eget diam sed sapien congue mattis.";
+        u5 = URI.create("text3");
+        stream5 = new ByteArrayInputStream(text3.getBytes());
+
+        text4 = "Donec volutpat erat sed ante convallis, vel commodo dolor eleifend. Vivamus sed fringilla nisi, iaculis semper orci. Nulla id fringilla urna. Nam venenatis libero quis ipsum cursus elementum. Aliquam ultrices, velit ac eleifend suscipit, ex mi tincidunt tellus, porttitor accumsan lectus sem id mi. Maecenas nisi dui, maximus eget mauris sit amet, mattis blandit dolor. Proin efficitur orci purus, eget iaculis justo dignissim a. Sed eleifend sem ac lectus pretium, id malesuada purus volutpat. Cras porttitor varius est, eu malesuada augue dictum eu. Cras nisl enim, aliquam nec arcu eget, dapibus cursus arcu. Etiam fringilla accumsan cursus. In ac finibus enim, nec accumsan elit.";
+        u6 = URI.create("text4");
+        stream6 = new ByteArrayInputStream(text4.getBytes());
+
+        dstore.put(stream3,u3,text);
+        dstore.put(stream4,u4,text);
+        dstore.put(stream5,u5,text);
+        dstore.put(stream6,u6,text);
     }
 
     @AfterEach
@@ -118,6 +142,9 @@ class DocumentStoreImplTest {
         assertDoesNotThrow(() -> {
             dstore.undo(u2);
         });
+        for(int i = 0; i < 4; i++){ //since setup adds 4 documents
+            dstore.undo();
+        }
         assertThrows(IllegalStateException.class, () -> {
             dstore.undo();
         });
@@ -142,9 +169,16 @@ class DocumentStoreImplTest {
 
     @Test
     void search() {
-        DocumentImpl d1 = new DocumentImpl(URI.create("d1"),"Java java Jason. Jason Java?"); //Jason:2 Java:2 java:1
-        DocumentImpl d2 = new DocumentImpl(URI.create("d2"),"Jason!@ Jason#$ java java-java Java"); //Jason:2 java:1 java-java:1 Java:1
-        DocumentImpl d3 = new DocumentImpl(URI.create("d3"),"Jason Jason Jason Jason java java java Java Java Pickles");
+
+        List<Document> l = dstore.search("lorem");
+        for(Document d : l){
+            assertEquals(d.getKey(),URI.create("text3"));
+        }
+
+        l = dstore.search("sit");
+        for(Document d : l){
+            System.out.println("sit:" + d.getKey());
+        }
     }
 
     @Test
