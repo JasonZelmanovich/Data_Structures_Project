@@ -76,14 +76,17 @@ public class TrieImpl<Value> implements Trie {
      */
     @Override
     public List getAllSorted(String key, Comparator comparator) {
+        if (key == null || comparator == null) {
+            throw new IllegalArgumentException("String 'key' or comparator was NULL");
+        }
         ArrayList<Value> valuesList = new ArrayList<>();
-        if(comparator == null){
+        if (comparator == null) {
             throw new IllegalArgumentException();
         }
-        Node n = get(root,key,0);
-        if(n == null || n.val == null){
+        Node n = get(root, key, 0);
+        if (n == null || n.val == null) {
             return valuesList;
-        }else{
+        } else {
             valuesList.addAll(n.val);
         }
         valuesList.sort(comparator);
@@ -101,11 +104,14 @@ public class TrieImpl<Value> implements Trie {
      */
     @Override
     public List getAllWithPrefixSorted(String prefix, Comparator comparator) {
+        if (prefix == null || comparator == null) {
+            throw new IllegalArgumentException("Prefix string or comparator was NULL");
+        }
         ArrayList<Value> valuesList = new ArrayList<>();
-        Node x = get(root,prefix,0);
+        Node x = get(root, prefix, 0);
         HashSet<Value> valuesSet = new HashSet<>();
-        collect(x,prefix,valuesSet);
-        if(valuesSet.size() > 0){
+        collect(x, prefix, valuesSet);
+        if (valuesSet.size() > 0) {
             valuesList.addAll(valuesSet);
             valuesList.sort(comparator);
         }
@@ -129,14 +135,17 @@ public class TrieImpl<Value> implements Trie {
      */
     @Override
     public Set deleteAllWithPrefix(String prefix) {
+        if (prefix == null) {
+            throw new IllegalArgumentException("Prefix string was NULL");
+        }
         HashSet<Value> deletedValues = new HashSet<>();
-        Node x = get(root,prefix,0);
-        if(x == null){
+        Node x = get(root, prefix, 0);
+        if (x == null) {
             return deletedValues;
         }
-        collect(x,prefix,deletedValues);
+        collect(x, prefix, deletedValues);
         x.links = new Node[alphabetSize];
-        root = delete(root,prefix,0);
+        root = delete(root, prefix, 0);
         return deletedValues;
     }
 
@@ -148,12 +157,15 @@ public class TrieImpl<Value> implements Trie {
      */
     @Override
     public Set deleteAll(String key) {
+        if (key == null) {
+            throw new IllegalArgumentException("key string was NULL");
+        }
         HashSet<Value> deletedValues = new HashSet<>();
-        Node x = get(root,key,0);
-        if(x == null) return deletedValues;
-        if(x.val != null) deletedValues.addAll(x.val);
+        Node x = get(root, key, 0);
+        if (x == null) return deletedValues;
+        if (x.val != null) deletedValues.addAll(x.val);
         //clean up if it was a leaf node
-        this.root = delete(this.root,key,0);
+        this.root = delete(this.root, key, 0);
         return deletedValues;
     }
 
@@ -166,13 +178,13 @@ public class TrieImpl<Value> implements Trie {
      */
     @Override
     public Object delete(String key, Object val) {
-        if(val == null){
-            throw new IllegalArgumentException();
+        if (val == null || key == null) {
+            throw new IllegalArgumentException("Value or key was NULL");
         }
-        Node x = get(this.root,key,0);
+        Node x = get(this.root, key, 0);
         Value tbd = null;
-        if(x != null && x.val.contains(val)){
-            tbd = (Value)val;
+        if (x != null && x.val.contains(val)) {
+            tbd = (Value) val;
             x.val.remove(val);
         }
         return tbd;
