@@ -150,6 +150,9 @@ public class DocumentStoreImpl implements DocumentStore {
      */
     @Override
     public boolean delete(URI uri) {
+        if (uri == null) {
+            throw new IllegalArgumentException("uri was NULL");
+        }
         if (!hashTable.containsKey(uri)) {
             return false;
         } else {
