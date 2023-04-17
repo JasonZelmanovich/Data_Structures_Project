@@ -198,10 +198,11 @@ public class DocumentStoreImpl implements DocumentStore {
         if (cmdStack.size() == 0) throw new IllegalStateException("No Actions to be undone");
         StackImpl<Undoable> tempStack = new StackImpl<>();
         while (cmdStack.peek() != null) {
-            if (cmdStack.peek() instanceof GenericCommand<?>) { // check instance and get target
+            if (cmdStack.peek() instanceof GenericCommand) { // check instance and get target
                 GenericCommand<URI> temp = (GenericCommand<URI>) cmdStack.peek();
-                if (temp.getTarget() == uri) {
-                    cmdStack.pop().undo();
+                if (temp.getTarget().equals(uri)) {
+                    boolean b = cmdStack.pop().undo();
+                    assert b == true;
                     found = true;
                     break;
                 } else {
@@ -210,8 +211,9 @@ public class DocumentStoreImpl implements DocumentStore {
             } else {
                 CommandSet<URI> temp = (CommandSet<URI>) cmdStack.peek();
                 if (temp.containsTarget(uri)) {
-                    temp.undo(uri);
-                    if(temp.size() == 0){
+                    boolean b = temp.undo(uri);
+                    assert b == true;
+                    if (temp.size() == 0) {
                         cmdStack.pop();
                     }
                     found = true;
@@ -293,24 +295,26 @@ public class DocumentStoreImpl implements DocumentStore {
         if(docsToBeRemoved.size() == 0){
             return Collections.emptySet();
         }
-        for(Document doc : docsToBeRemoved){
-            for(String w : doc.getWords()){
-                trie.delete(w,doc);
+        for (Document doc : docsToBeRemoved) {
+            for (String w : doc.getWords()) {
+                trie.delete(w, doc);
             }
             docKeys.add(doc.getKey());
-            this.hashTable.put(doc.getKey(),null);
+            this.hashTable.put(doc.getKey(), null);
         }
-        //undo logic for CommandSet         create a set of genericCommands to undo each deletion of the document then add the set to CommandSet
+        //undo logic for CommandSet create a set of genericCommands to undo each deletion of the document then add the set to CommandSet
         CommandSet<URI> cmdSet = new CommandSet<>();
-        for(Document doc : docsToBeRemoved){
-            for(String w : doc.getWords()){
-                Function undoDeletion = (u) -> {
-                  trie.put(w,doc);
-                  return this.hashTable.put(u,doc) == null;
-                };
-                cmdSet.addCommand(new GenericCommand<URI>(doc.getKey(),undoDeletion));
-            }
-        }//push the CommandSet on to the stack
+        for (Document doc : docsToBeRemoved) {
+            Function undoDeletion = (u) -> {
+                boolean success = true;
+                for (String w : doc.getWords()) {
+                    trie.put(w, doc);
+                }
+                return this.hashTable.put(u, doc) == null;
+            };
+            cmdSet.addCommand(new GenericCommand<>(doc.getKey(), undoDeletion));
+        }
+        //push the CommandSet on to the stack
         cmdStack.push(cmdSet);
         return docKeys;
     }

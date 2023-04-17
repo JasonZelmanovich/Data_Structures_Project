@@ -10,9 +10,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -200,20 +198,103 @@ class DocumentStoreImplTest {
     }
 
     @Test
-    void searchByPrefix() {
+    void searchByPrefix() throws IOException {
         List<Document> l = dstore.searchByPrefix("lor");
-        for(Document d : l){
+        ArrayList<URI> t = new ArrayList<>();
+        for (Document d : l) {
             System.out.println(d.getKey() + ": contains prefix 'lor'");
+            t.add(d.getKey());
         }
+        assertEquals(t, Arrays.asList(URI.create("text3")));
+
+        String tempText = "Test for binary document";
+        InputStream temp = new ByteArrayInputStream(tempText.getBytes());
+        dstore.put(temp, URI.create("Temp"), binary);
+        assertEquals(dstore.search("Test").size(), 0);
 
         l = dstore.searchByPrefix("");
-        for(Document d : l){
-            System.out.println(d.getKey() + ": contains prefix ''");
+        for (Document d : l) {
+            System.out.println(d.getKey() + ": contains prefix ''"); //returns all documents except for temp doc bc binary
         }
+
+        l = dstore.searchByPrefix("li");
+        t = new ArrayList<>();
+        for (Document d : l) {
+            System.out.println(d.getKey() + ": contains prefix 'li'");
+            t.add(d.getKey());
+        }
+        assertEquals(t, Arrays.asList(URI.create("text3"), URI.create("text4"), URI.create("text2"), URI.create("text1")));
+
+        l = dstore.searchByPrefix("foop");
+        assertEquals(l, Collections.EMPTY_LIST);
     }
 
     @Test
     void deleteAll() {
+        Set<URI> del = dstore.deleteAll("Lorem");
+        for (URI u : del) {
+            System.out.println(u);
+        }
+
+        assertEquals(dstore.search("Lorem"), Collections.EMPTY_LIST);
+        List<Document> l = dstore.searchByPrefix("");
+        List<URI> t = new ArrayList<>();
+        for (Document d : l) {
+            t.add(d.getKey());
+            System.out.println(d.getKey() + ": contains prefix ''"); //Only return text3, text4
+        }
+        assertEquals(t, Arrays.asList(URI.create("text4"), URI.create("text3")));
+
+        l = dstore.searchByPrefix("a");
+        t = new ArrayList<>();
+        for (Document d : l) {
+            t.add(d.getKey());
+            System.out.println(d.getKey() + ": contains prefix 'a'"); //Only return text3, text4
+        }
+        assertEquals(t, Arrays.asList(URI.create("text4"), URI.create("text3")));
+
+        dstore.undo(URI.create("text2"));
+        l = dstore.search("Lorem");
+        t = new ArrayList<>();
+        for (Document d : l) {
+            t.add(d.getKey());
+            System.out.println(d.getKey());
+        }
+        assertEquals(t, Arrays.asList(URI.create("text2")));
+
+        dstore.undo();
+        l = dstore.search("Lorem");
+        t = new ArrayList<>();
+        for (Document d : l) {
+            t.add(d.getKey());
+            System.out.println(d.getKey());
+        }
+        assertEquals(t, Arrays.asList(URI.create("text2"), URI.create("text1")));
+        dstore.undo(URI.create("text2"));
+        l = dstore.searchByPrefix("");
+        t = new ArrayList<>();
+        assertEquals(l.size(), 3);
+        for (Document d : l) {
+            System.out.println("ALl but text 2" + d.getKey());
+            t.add(d.getKey());
+        }
+        assertFalse(t.contains(URI.create("text2")));
+
+        dstore.undo();
+        l = dstore.searchByPrefix("");
+        t = new ArrayList<>();
+        assertEquals(l.size(), 2);
+        for (Document d : l) {
+            System.out.println("ALl but text 2 & 4" + d.getKey());
+            t.add(d.getKey());
+        }
+        assertFalse(t.contains(URI.create("text4")));
+
+        dstore.undo();
+        dstore.undo();
+        assertThrows(IllegalStateException.class, () -> {
+            dstore.undo();
+        });
     }
 
     @Test
