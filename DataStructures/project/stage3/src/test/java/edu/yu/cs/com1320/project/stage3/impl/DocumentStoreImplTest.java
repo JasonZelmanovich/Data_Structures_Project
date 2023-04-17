@@ -10,6 +10,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -168,7 +170,7 @@ class DocumentStoreImplTest {
     }
 
     @Test
-    void search() {
+    void search() throws IOException {
 
         List<Document> l = dstore.search("lorem");
         for(Document d : l){
@@ -176,13 +178,38 @@ class DocumentStoreImplTest {
         }
 
         l = dstore.search("sit");
+        ArrayList<URI> t = new ArrayList<>();
         for(Document d : l){
+            t.add(d.getKey());
             System.out.println("sit:" + d.getKey());
         }
+        assertEquals(t,Arrays.asList(URI.create("text3"),URI.create("text1"),URI.create("text4"),URI.create("text2")));
+
+        String tempText = "Test for binary document";
+        InputStream temp = new ByteArrayInputStream(tempText.getBytes());
+        dstore.put(temp,URI.create("Temp"),binary);
+        assertEquals(dstore.search("Test").size(),0);
+
+        l = dstore.search("ipsum");
+        t = new ArrayList<>();
+        for(Document d : l){
+            t.add(d.getKey());
+            System.out.println(d.getKey() + ": contains 'ipsum'");
+        }
+        assertEquals(t,Arrays.asList(URI.create("text1"),URI.create("text4"),URI.create("text2")));
     }
 
     @Test
     void searchByPrefix() {
+        List<Document> l = dstore.searchByPrefix("lor");
+        for(Document d : l){
+            System.out.println(d.getKey() + ": contains prefix 'lor'");
+        }
+
+        l = dstore.searchByPrefix("");
+        for(Document d : l){
+            System.out.println(d.getKey() + ": contains prefix ''");
+        }
     }
 
     @Test
