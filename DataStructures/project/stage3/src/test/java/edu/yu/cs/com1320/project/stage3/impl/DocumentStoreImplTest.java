@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DocumentStoreImplTest {
     DocumentStoreImpl dstore;
-    URI u1, u2,u3,u4,u5,u6;
+    URI u1, u2, u3, u4, u5, u6;
     String jas, ste, text1, text2, text3, text4;
     DocumentStore.DocumentFormat text, binary;
     InputStream stream2, stream1, stream3, stream4, stream5, stream6;
@@ -52,10 +52,10 @@ class DocumentStoreImplTest {
         u6 = URI.create("text4");
         stream6 = new ByteArrayInputStream(text4.getBytes());
 
-        dstore.put(stream3,u3,text);
-        dstore.put(stream4,u4,text);
-        dstore.put(stream5,u5,text);
-        dstore.put(stream6,u6,text);
+        dstore.put(stream3, u3, text);
+        dstore.put(stream4, u4, text);
+        dstore.put(stream5, u5, text);
+        dstore.put(stream6, u6, text);
     }
 
     @AfterEach
@@ -142,7 +142,7 @@ class DocumentStoreImplTest {
         assertDoesNotThrow(() -> {
             dstore.undo(u2);
         });
-        for(int i = 0; i < 4; i++){ //since setup adds 4 documents
+        for (int i = 0; i < 4; i++) { //since setup adds 4 documents
             dstore.undo();
         }
         assertThrows(IllegalStateException.class, () -> {
@@ -169,32 +169,42 @@ class DocumentStoreImplTest {
 
     @Test
     void search() throws IOException {
-
         List<Document> l = dstore.search("lorem");
-        for(Document d : l){
-            assertEquals(d.getKey(),URI.create("text3"));
+        for (Document d : l) {
+            assertEquals(d.getKey(), URI.create("text3"));
         }
 
-        l = dstore.search("sit");
+        l = dstore.search("Lorem");
         ArrayList<URI> t = new ArrayList<>();
-        for(Document d : l){
+        for (Document d : l) {
+            System.out.println("Lorem search: " + d.getKey());
+            t.add(d.getKey());
+        }
+        assertEquals(t, Arrays.asList(URI.create("text2"), URI.create("text1")));
+
+        l = dstore.search("sit");
+        t = new ArrayList<>();
+        for (Document d : l) {
             t.add(d.getKey());
             System.out.println("sit:" + d.getKey());
         }
-        assertEquals(t,Arrays.asList(URI.create("text3"),URI.create("text1"),URI.create("text4"),URI.create("text2")));
+        assertEquals(t, Arrays.asList(URI.create("text3"), URI.create("text1"), URI.create("text4"), URI.create("text2")));
 
         String tempText = "Test for binary document";
         InputStream temp = new ByteArrayInputStream(tempText.getBytes());
-        dstore.put(temp,URI.create("Temp"),binary);
-        assertEquals(dstore.search("Test").size(),0);
+        dstore.put(temp, URI.create("Temp"), binary);
+        assertEquals(dstore.search("Test").size(), 0);
 
         l = dstore.search("ipsum");
         t = new ArrayList<>();
-        for(Document d : l){
+        for (Document d : l) {
             t.add(d.getKey());
             System.out.println(d.getKey() + ": contains 'ipsum'");
         }
-        assertEquals(t,Arrays.asList(URI.create("text1"),URI.create("text4"),URI.create("text2")));
+        assertEquals(t, Arrays.asList(URI.create("text1"), URI.create("text4"), URI.create("text2")));
+
+        l = dstore.search("");
+        assertEquals(l, Collections.EMPTY_LIST);
     }
 
     @Test
@@ -205,7 +215,7 @@ class DocumentStoreImplTest {
             System.out.println(d.getKey() + ": contains prefix 'lor'");
             t.add(d.getKey());
         }
-        assertEquals(t, Arrays.asList(URI.create("text3")));
+        assertEquals(t, List.of(URI.create("text3")));
 
         String tempText = "Test for binary document";
         InputStream temp = new ByteArrayInputStream(tempText.getBytes());
@@ -260,7 +270,7 @@ class DocumentStoreImplTest {
             t.add(d.getKey());
             System.out.println(d.getKey());
         }
-        assertEquals(t, Arrays.asList(URI.create("text2")));
+        assertEquals(t, List.of(URI.create("text2")));
 
         dstore.undo();
         l = dstore.search("Lorem");
@@ -299,5 +309,31 @@ class DocumentStoreImplTest {
 
     @Test
     void deleteAllWithPrefix() {
+        Set<URI> del = dstore.deleteAllWithPrefix("dol");
+        for (URI u : del) {
+            System.out.println("Deleted doc with prefix 'dol' :" + u);
+        }
+        assertFalse(del.contains(URI.create("text3")));
+
+        List<Document> l = dstore.searchByPrefix("");
+        List<URI> t = new ArrayList<>();
+        for (Document d : l) {
+            t.add(d.getKey());
+            System.out.println(d.getKey() + ": contains prefix ''"); //Only return text3
+        }
+        assertEquals(t, List.of(URI.create("text3")));
+
+        //undo deleted element text1 and check its existence
+        dstore.undo(URI.create("text1"));
+        l = dstore.searchByPrefix("");
+        t = new ArrayList<>();
+        for (Document d : l) {
+            t.add(d.getKey());
+            System.out.println(d.getKey() + ": after undo, contains prefix ''"); //Only return text3
+        }
+        assertEquals(t, Arrays.asList(URI.create("text1"), URI.create("text3")));
+
+        dstore.deleteAllWithPrefix("");//delete all documents
+        assertEquals(dstore.deleteAllWithPrefix("a"), Collections.EMPTY_SET);
     }
 }

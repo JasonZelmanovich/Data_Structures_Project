@@ -5,12 +5,10 @@ import edu.yu.cs.com1320.project.GenericCommand;
 import edu.yu.cs.com1320.project.Undoable;
 import edu.yu.cs.com1320.project.impl.HashTableImpl;
 import edu.yu.cs.com1320.project.impl.StackImpl;
-import edu.yu.cs.com1320.project.impl.TooSimpleTrie;
 import edu.yu.cs.com1320.project.impl.TrieImpl;
 import edu.yu.cs.com1320.project.stage3.Document;
 import edu.yu.cs.com1320.project.stage3.DocumentStore;
 
-import javax.print.Doc;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -306,7 +304,6 @@ public class DocumentStoreImpl implements DocumentStore {
         CommandSet<URI> cmdSet = new CommandSet<>();
         for (Document doc : docsToBeRemoved) {
             Function undoDeletion = (u) -> {
-                boolean success = true;
                 for (String w : doc.getWords()) {
                     trie.put(w, doc);
                 }
@@ -342,13 +339,13 @@ public class DocumentStoreImpl implements DocumentStore {
         }
         CommandSet<URI> cmdSet = new CommandSet<>();
         for (Document doc : docsToBeRemoved) {
-            for (String w : doc.getWords()) {
-                Function undoDeletion = (u) -> {
+            Function undoDeletion = (u) -> {
+                for (String w : doc.getWords()) {
                     trie.put(w, doc);
-                    return this.hashTable.put(u, doc) == null;
-                };
-                cmdSet.addCommand(new GenericCommand<URI>(doc.getKey(), undoDeletion));
-            }
+                }
+                return this.hashTable.put(u, doc) == null;
+            };
+            cmdSet.addCommand(new GenericCommand<URI>(doc.getKey(), undoDeletion));
         }//push the CommandSet on to the stack
         cmdStack.push(cmdSet);
         return docKeys;
