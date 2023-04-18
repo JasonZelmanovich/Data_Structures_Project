@@ -66,7 +66,7 @@ class DocumentStoreImplTest {
     @Test
     void put() throws IOException {
 
-        assertEquals(dstore.put(stream1, u1, text), 0); // first entry for uri so returns 0
+        assertEquals(dstore.put(stream1, u1, text), 0); // first entry for uri so returns 03
         assertEquals(dstore.get(u1).getDocumentTxt(), "Jason");// Input Stream passed in TEXT: "Jason"
         assertNull(dstore.get(u1).getDocumentBinaryData());
         assertNotEquals(dstore.put(stream2, u1, binary), 0);// second entry returns hashcode of previous doc in table i.e. NOT ZERO

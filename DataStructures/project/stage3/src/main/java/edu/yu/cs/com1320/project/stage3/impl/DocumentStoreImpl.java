@@ -59,36 +59,6 @@ public class DocumentStoreImpl implements DocumentStore {
      * @param uri    - the proper uri associated with the given document
      * @return the old hashcode if there was one, if no previous value return 0
      */
-//    private int storeProperFormat(DocumentFormat f, byte[] bArray, URI uri) {
-//        switch (f) {
-//            case TXT -> {
-//                String s = new String(bArray);
-//                DocumentImpl doc1 = new DocumentImpl(uri, s);
-//                DocumentImpl old1 = hashTable.put(uri, doc1);
-//                if (old1 != null) {
-//                    Function undoReplaceLambda = (u) -> hashTable.put(u, old1) == doc1;
-//                    cmdStack.push(new GenericCommand<URI>(uri, undoReplaceLambda));
-//                } else {
-//                    Function undoNewLambda = (u) -> hashTable.put(u, null) == doc1; //essentially deleting the added document
-//                    cmdStack.push(new GenericCommand<URI>(uri, undoNewLambda));
-//                }
-//                return old1 == null ? 0 : old1.hashCode();
-//            }
-//            case BINARY -> {
-//                DocumentImpl doc2 = new DocumentImpl(uri, bArray);
-//                DocumentImpl old2 = hashTable.put(uri, doc2);
-//                Function undoReplaceLambda;
-//                if (old2 != null) {
-//                    undoReplaceLambda = (u) -> hashTable.put(u, old2) == doc2;
-//                } else {
-//                    undoReplaceLambda = (u) -> hashTable.put(u, null) == doc2;
-//                }
-//                cmdStack.push(new GenericCommand<URI>(uri, undoReplaceLambda));
-//                return old2 == null ? 0 : old2.hashCode();
-//            }
-//        }
-//        return 0;
-//    }
 
     private int storeDocument(DocumentFormat f, byte[] bArray, URI uri){
         DocumentImpl doc;
@@ -99,38 +69,42 @@ public class DocumentStoreImpl implements DocumentStore {
             for(String word : doc.getWords()){
                 trie.put(word,doc);
             }
-        }else if(f.equals((DocumentFormat.BINARY))){
+        } else if (f.equals((DocumentFormat.BINARY))) {
             doc = new DocumentImpl(uri, bArray);
-        }else{
+        } else {
             doc = null;
             return 0;
         }
         old = hashTable.put(uri, doc);
+        storeDocUndoLogic(old, doc, uri);
+        return old == null ? 0 : old.hashCode();
+    }
+
+    private void storeDocUndoLogic(Document old, Document doc, URI uri) {
         Function undoReplaceLambda;
         if (old != null) {
-            for(String word : old.getWords()){
-                Object obj = trie.delete(word,old);
+            for (String word : old.getWords()) {
+                Object obj = trie.delete(word, old);
                 assert obj != null : "Old doc word should have been in the tree for deletion with specified document";
             }
             undoReplaceLambda = (u) -> {
-                for(String word : doc.getWords()){
-                    trie.delete(word,doc);
+                for (String word : doc.getWords()) {
+                    trie.delete(word, doc);
                 }
-                for(String word : old.getWords()){
-                    trie.put(word,old);
+                for (String word : old.getWords()) {
+                    trie.put(word, old);
                 }
                 return hashTable.put(u, old) == doc;
             };
         } else {
             undoReplaceLambda = (u) -> {
-                for(String word : doc.getWords()){
-                    trie.delete(word,doc);
+                for (String word : doc.getWords()) {
+                    trie.delete(word, doc);
                 }
                 return hashTable.put(u, null) == doc;
             };
         }
         cmdStack.push(new GenericCommand<URI>(uri, undoReplaceLambda));
-        return old == null ? 0 : old.hashCode();
     }
 
     /**
