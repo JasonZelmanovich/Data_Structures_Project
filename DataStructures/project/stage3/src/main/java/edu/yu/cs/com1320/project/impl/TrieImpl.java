@@ -4,7 +4,7 @@ import edu.yu.cs.com1320.project.Trie;
 
 import java.util.*;
 
-public class TrieImpl<Value> implements Trie {
+public class TrieImpl<Value> implements Trie<Value> {
     private static final int alphabetSize = 128;
     private Node root;
 
@@ -18,7 +18,7 @@ public class TrieImpl<Value> implements Trie {
      * @param val
      */
     @Override
-    public void put(String key, Object val) {
+    public void put(String key, Value val) {
         if (val == null) {
             return;
         }
@@ -72,7 +72,7 @@ public class TrieImpl<Value> implements Trie {
      * @return a List of matching Values, in descending order
      */
     @Override
-    public List getAllSorted(String key, Comparator comparator) {
+    public List<Value> getAllSorted(String key, Comparator comparator) {
         if (key == null || comparator == null) {
             throw new IllegalArgumentException("String 'key' or comparator was NULL");
         }
@@ -97,7 +97,7 @@ public class TrieImpl<Value> implements Trie {
      * @return a List of all matching Values containing the given prefix, in descending order
      */
     @Override
-    public List getAllWithPrefixSorted(String prefix, Comparator comparator) {
+    public List<Value> getAllWithPrefixSorted(String prefix, Comparator comparator) {
         if (prefix == null || comparator == null) {
             throw new IllegalArgumentException("Prefix string or comparator was NULL");
         }
@@ -128,7 +128,7 @@ public class TrieImpl<Value> implements Trie {
      * @return a Set of all Values that were deleted.
      */
     @Override
-    public Set deleteAllWithPrefix(String prefix) {
+    public Set<Value> deleteAllWithPrefix(String prefix) {
         if (prefix == null) {
             throw new IllegalArgumentException("Prefix string was NULL");
         }
@@ -150,7 +150,7 @@ public class TrieImpl<Value> implements Trie {
      * @return a Set of all Values that were deleted.
      */
     @Override
-    public Set deleteAll(String key) {
+    public Set<Value> deleteAll(String key) {
         if (key == null) {
             throw new IllegalArgumentException("key string was NULL");
         }
@@ -171,7 +171,7 @@ public class TrieImpl<Value> implements Trie {
      * @return the value which was deleted. If the key did not contain the given value, return null.
      */
     @Override
-    public Object delete(String key, Object val) {
+    public Value delete(String key, Value val) {
         if (val == null || key == null) {
             throw new IllegalArgumentException("Value or key was NULL");
         }
