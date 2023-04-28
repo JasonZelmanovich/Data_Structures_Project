@@ -48,8 +48,21 @@ public class DocumentStoreImpl implements DocumentStore {
         }
         if (input == null) {
             DocumentImpl temp = hashTable.put(uri, null);
-            if (temp != null) {
-                Function undoDeleteLambda = (u) -> hashTable.put(u, temp) == null;
+            if (temp != null) {// if there was actually something to be deleted
+                temp.setLastUseTime(Long.MIN_VALUE);
+                minHeap.reHeapify(temp);
+                minHeap.remove();
+                for (String s : temp.getWords()) {
+                    trie.delete(s, temp);
+                }
+                Function undoDeleteLambda = (u) -> {
+                    for (String s : temp.getWords()) {
+                        trie.put(s, temp);
+                    }
+                    temp.setLastUseTime(System.nanoTime());
+                    minHeap.insert(temp);
+                    return hashTable.put(u, temp) == null;
+                };
                 cmdStack.push(new GenericCommand<URI>(uri, undoDeleteLambda));
             }
             return temp == null ? 0 : temp.hashCode();
@@ -81,13 +94,13 @@ public class DocumentStoreImpl implements DocumentStore {
             return 0;
         }
         old = hashTable.put(uri, doc);
+        doc.setLastUseTime(System.nanoTime());
+        this.minHeap.insert(doc);
         if (old != null) {
             old.setLastUseTime(Long.MIN_VALUE);
             this.minHeap.reHeapify(old);
             minHeap.remove();
         }
-        doc.setLastUseTime(System.nanoTime());
-        this.minHeap.insert(doc);
         storeDocUndoLogic(old, doc, uri);
         return old == null ? 0 : old.hashCode();
     }
@@ -354,6 +367,9 @@ public class DocumentStoreImpl implements DocumentStore {
      */
     @Override
     public void setMaxDocumentCount(int limit) {
+        if (limit < 0) {
+            throw new IllegalArgumentException();
+        }
         this.max_doc_count = limit;
     }
 
@@ -364,6 +380,9 @@ public class DocumentStoreImpl implements DocumentStore {
      */
     @Override
     public void setMaxDocumentBytes(int limit) {
+        if (limit < 0) {
+            throw new IllegalArgumentException();
+        }
         this.max_doc_bytes = limit;
     }
 }
