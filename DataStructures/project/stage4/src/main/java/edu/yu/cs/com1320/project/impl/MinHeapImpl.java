@@ -7,7 +7,7 @@ import java.util.NoSuchElementException;
 public class MinHeapImpl<E extends Comparable<E>> extends MinHeap<E> {
 
     public MinHeapImpl() {
-        this.elements = (E[]) new Comparable[10];
+        this.elements = (E[]) new Comparable[5];
     }
 
 
@@ -24,7 +24,7 @@ public class MinHeapImpl<E extends Comparable<E>> extends MinHeap<E> {
         if (count == 0 || element == null) {
             throw new NoSuchElementException();
         }
-        for (int i = 0; i < this.elements.length; i++) {
+        for (int i = 1; i < this.elements.length; i++) {
             if (this.elements[i].equals(element)) {
                 return i;
             }

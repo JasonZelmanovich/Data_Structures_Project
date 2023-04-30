@@ -70,18 +70,12 @@ public class DocumentStoreImpl implements DocumentStore {
                     trie.delete(s, temp);
                 }
                 Function undoDeleteLambda = (u) -> {
-                    manageMemoryOnPut(temp, format);//manage memory and then put the undo into the doc
-                    if (this.doc_count_limit == 0) {
-                        return false;
-                    }
+                    manageMemoryOnPut(temp, format);//manage memory and then put the undone doc into the docStore
+                    //put the deleted doc back into the doc store
+                    this.num_current_docs_used++;
+                    this.num_total_bytes_used += mem;
                     for (String s : temp.getWords()) {
                         trie.put(s, temp);
-                    }
-                    this.num_current_docs_used++;
-                    if (temp.getDocumentTxt() != null) {
-                        this.num_total_bytes_used += temp.getDocumentTxt().getBytes().length;
-                    } else {
-                        this.num_total_bytes_used += temp.getDocumentBinaryData().length;
                     }
                     temp.setLastUseTime(System.nanoTime());
                     minHeap.insert(temp);
@@ -105,6 +99,7 @@ public class DocumentStoreImpl implements DocumentStore {
     private int storeDocument(DocumentFormat f, byte[] bArray, URI uri) {
         DocumentImpl doc;
         DocumentImpl old;
+        int memory;
         if (f.equals(DocumentFormat.TXT)) {
             String s = new String(bArray);
             doc = new DocumentImpl(uri, s);
@@ -112,63 +107,70 @@ public class DocumentStoreImpl implements DocumentStore {
             for (String word : doc.getWords()) {
                 trie.put(word, doc);
             }
-            this.num_total_bytes_used += doc.getDocumentTxt().getBytes().length
+            memory = doc.getDocumentTxt().getBytes().length;
         } else if (f.equals((DocumentFormat.BINARY))) {
             doc = new DocumentImpl(uri, bArray);
             manageMemoryOnPut(doc, f);
-            this.num_total_bytes_used += doc.getDocumentBinaryData().length
+            memory = doc.getDocumentBinaryData().length;
         } else {
             doc = null;
             return 0;
         }
+        this.num_total_bytes_used += memory;
+        //Already inserted into trie &
         old = hashTable.put(uri, doc);
         doc.setLastUseTime(System.nanoTime());
         this.minHeap.insert(doc);
-        storeDocUndoLogic(old, doc, uri, f);
-        this.num_current_docs_used++;
+        //All insertions finished
+        storeDocUndoLogic(old, doc, uri, memory);//Handle deletion of OLD if necessary, create the undo lambda, check for old doc existence
+        this.num_current_docs_used++; // update docStore memory status in regard to number of documents
         int tbr = old == null ? 0 : old.hashCode();
         manageMemory();
         return tbr;
     }
 
-    private void storeDocUndoLogic(Document old, Document doc, URI uri, DocumentFormat f) {
+    private void storeDocUndoLogic(Document old, Document doc, URI uri, int newMem) {
         Function undoReplaceLambda;
         DocumentFormat oldformat;
-        DocumentFormat newFormat = f;
+        int new_doc_mem = newMem;
         int oldMem;
-        if (old != null) {
+        if (old != null) { //If an old document was being replaced
             old.setLastUseTime(Long.MIN_VALUE);
             this.minHeap.reHeapify(old);
             minHeap.remove();
-            for (String word : old.getWords()) {
+            //removed Old doc from the heap
+            for (String word : old.getWords()) {//delete all trace of old doc from the TRIE
                 Object obj = trie.delete(word, old);
                 assert obj != null : "Old doc word should have been in the tree for deletion with specified document";
             }
-            this.num_current_docs_used--;
-            if (old.getDocumentTxt() != null) {
+            this.num_current_docs_used--; //update docStore memory status i.e. remove old doc from the # of docs
+            if (old.getDocumentTxt() != null) { //check the format of the old doc and set the amount of memory it needs
                 oldformat = DocumentFormat.TXT;
                 oldMem = old.getDocumentTxt().getBytes().length;
             } else {
                 oldformat = DocumentFormat.BINARY;
                 oldMem = old.getDocumentBinaryData().length;
             }
-            this.num_total_bytes_used -= oldMem;
+            this.num_total_bytes_used -= oldMem; //update docStore memory status i.e. remove old doc from the memory of docStore
             undoReplaceLambda = (u) -> { //undo if something was deleted as a result of docs insertion
-                for (String word : doc.getWords()) {
+                for (String word : doc.getWords()) {//remove new doc from the trie
                     trie.delete(word, doc);
                 }
                 doc.setLastUseTime(Long.MIN_VALUE);
                 minHeap.reHeapify(doc);
-                minHeap.remove();
-                this.num_current_docs_used--;
-                //up to here
+                minHeap.remove();//remove new doc from the heap
+                this.num_current_docs_used--;//update memory status for # of docs
+                this.num_total_bytes_used -= new_doc_mem; // remove the new doc memory size from docStores memory status
                 manageMemoryOnPut(old, oldformat);
-                for (String word : old.getWords()) {
+                for (String word : old.getWords()) { //put old doc into the trie
                     trie.put(word, old);
                 }
                 old.setLastUseTime(System.nanoTime());
-                minHeap.insert(old);
-                return hashTable.put(u, old) == doc;
+                minHeap.insert(old);//put old doc into the heap with new time
+                //update docStore memory status
+                this.num_current_docs_used++;
+                this.num_total_bytes_used += oldMem;
+                return hashTable.put(u, old) == doc; //replace hashtable with what was originally there
             };
         } else { // undo if nothing was deleted as result of docs insertion ( just remove doc )
             undoReplaceLambda = (u) -> {
@@ -178,6 +180,8 @@ public class DocumentStoreImpl implements DocumentStore {
                 doc.setLastUseTime(Long.MIN_VALUE);
                 minHeap.reHeapify(doc);
                 minHeap.remove();
+                this.num_current_docs_used--;
+                this.num_current_docs_used -= new_doc_mem;
                 return hashTable.put(u, null) == doc;
             };
         }
@@ -299,15 +303,29 @@ public class DocumentStoreImpl implements DocumentStore {
             for (String w : temp.getWords()) {
                 trie.delete(w, temp);
             }
+            int mem;
+            DocumentFormat f;
+            if(temp.getDocumentTxt() != null){
+                f = DocumentFormat.TXT;
+                mem = temp.getDocumentTxt().getBytes().length;
+            }else{
+                f = DocumentFormat.BINARY;
+                mem = temp.getDocumentBinaryData().length;
+            }
             temp.setLastUseTime(Long.MIN_VALUE);
             minHeap.reHeapify(temp);
             minHeap.remove();
+            this.num_current_docs_used--;
+            this.num_total_bytes_used -= mem;
             Function undoDeleteLambda = (u) -> {
+                manageMemoryOnPut(temp,f);
                 for (String w : temp.getWords()) {
                     trie.put(w, temp);
                 }
                 temp.setLastUseTime(System.nanoTime());
                 minHeap.insert(temp);
+                this.num_current_docs_used++;
+                this.num_total_bytes_used += mem;
                 return hashTable.put(u, temp) == null;
             };
             cmdStack.push(new GenericCommand<URI>(uri, undoDeleteLambda));
@@ -345,7 +363,6 @@ public class DocumentStoreImpl implements DocumentStore {
                 GenericCommand<URI> temp = (GenericCommand<URI>) cmdStack.peek();
                 if (temp.getTarget().equals(uri)) {
                     boolean b = cmdStack.pop().undo();
-                    manageMemory();
                     assert b == true;
                     found = true;
                     break;
@@ -371,6 +388,7 @@ public class DocumentStoreImpl implements DocumentStore {
         while (tempStack.peek() != null) {
             cmdStack.push(tempStack.pop());
         }
+        manageMemory();
         if (!found) throw new IllegalStateException("No Actions to be undone");
     }
 
@@ -455,25 +473,48 @@ public class DocumentStoreImpl implements DocumentStore {
             return Collections.emptySet();
         }
         for (Document doc : docsToBeRemoved) {
-            for (String w : doc.getWords()) {
+            int mem;
+            DocumentFormat f;
+            if(doc.getDocumentTxt() != null){//get doc format
+                f = DocumentFormat.TXT;
+                mem = doc.getDocumentTxt().getBytes().length;
+            }else{
+                f = DocumentFormat.BINARY;
+                mem = doc.getDocumentBinaryData().length;
+            }
+            for (String w : doc.getWords()) {//remove the doc to be deleted from the trie
                 trie.delete(w, doc);
             }
             docKeys.add(doc.getKey());
-            this.hashTable.put(doc.getKey(), null);
+            this.hashTable.put(doc.getKey(), null);//remove from the hashtable
             doc.setLastUseTime(Long.MIN_VALUE);
             minHeap.reHeapify(doc);
-            minHeap.remove();
+            minHeap.remove();//remove from the Min Heap
+            this.num_current_docs_used--;
+            this.num_total_bytes_used -= mem;
         }
         //undo logic for CommandSet create a set of genericCommands to undo each deletion of the document then add the set to CommandSet
         CommandSet<URI> cmdSet = new CommandSet<>();
-        long time = System.nanoTime();
+        long time = System.nanoTime();//all the docs going back should have the same nano time per piazza
         for (Document doc : docsToBeRemoved) {
+            int mem;
+            DocumentFormat f;
+            if(doc.getDocumentTxt() != null){//get doc format
+                f = DocumentFormat.TXT;
+                mem = doc.getDocumentTxt().getBytes().length;
+            }else{
+                f = DocumentFormat.BINARY;
+                mem = doc.getDocumentBinaryData().length;
+            }
             Function undoDeletion = (u) -> {
+                manageMemoryOnPut(doc, f);
                 for (String w : doc.getWords()) {
                     trie.put(w, doc);
                 }
                 doc.setLastUseTime(time);
                 minHeap.insert(doc);
+                this.num_current_docs_used++;
+                this.num_total_bytes_used += mem;
                 return this.hashTable.put(u, doc) == null;
             };
             cmdSet.addCommand(new GenericCommand<>(doc.getKey(), undoDeletion));
@@ -498,6 +539,15 @@ public class DocumentStoreImpl implements DocumentStore {
             return Collections.emptySet();
         }
         for (Document doc : docsToBeRemoved) {
+            int mem;
+            DocumentFormat f;
+            if(doc.getDocumentTxt() != null){//get doc format
+                f = DocumentFormat.TXT;
+                mem = doc.getDocumentTxt().getBytes().length;
+            }else{
+                f = DocumentFormat.BINARY;
+                mem = doc.getDocumentBinaryData().length;
+            }
             for (String w : doc.getWords()) {
                 trie.delete(w, doc);
             }
@@ -505,17 +555,31 @@ public class DocumentStoreImpl implements DocumentStore {
             doc.setLastUseTime(Long.MIN_VALUE);
             minHeap.reHeapify(doc);
             minHeap.remove();
+            this.num_current_docs_used--;
+            this.num_total_bytes_used -= mem;
             this.hashTable.put(doc.getKey(), null);
         }
         CommandSet<URI> cmdSet = new CommandSet<>();
         long time = System.nanoTime();
         for (Document doc : docsToBeRemoved) {
+            int mem;
+            DocumentFormat f;
+            if(doc.getDocumentTxt() != null){//get doc format
+                f = DocumentFormat.TXT;
+                mem = doc.getDocumentTxt().getBytes().length;
+            }else{
+                f = DocumentFormat.BINARY;
+                mem = doc.getDocumentBinaryData().length;
+            }
             Function undoDeletion = (u) -> {
+                manageMemoryOnPut(doc,f);
                 for (String w : doc.getWords()) {
                     trie.put(w, doc);
                 }
                 doc.setLastUseTime(time);
                 minHeap.insert(doc);
+                this.num_current_docs_used++;
+                this.num_total_bytes_used += mem;
                 return this.hashTable.put(u, doc) == null;
             };
             cmdSet.addCommand(new GenericCommand<URI>(doc.getKey(), undoDeletion));
