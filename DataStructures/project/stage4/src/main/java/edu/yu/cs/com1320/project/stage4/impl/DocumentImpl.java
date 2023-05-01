@@ -206,6 +206,9 @@ public class DocumentImpl implements Document {
      */
     @Override
     public int compareTo(Document o) {
+        if (o == null) {
+            throw new NullPointerException();
+        }
         if (this.getLastUseTime() < o.getLastUseTime()) {
             return -1;
         } else if (this.getLastUseTime() > o.getLastUseTime()) {
