@@ -1,7 +1,6 @@
 package edu.yu.cs.com1320.project.impl;
 
-import edu.yu.cs.com1320.project.impl.HashTableImpl;
-import org.testng.annotations.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 class HashTableImplTest {

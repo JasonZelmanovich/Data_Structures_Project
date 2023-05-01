@@ -207,11 +207,12 @@ public class DocumentStoreImpl implements DocumentStore {
             if (memoryNeeded > this.doc_bytes_limit) {
                 throw new IllegalArgumentException();
             }
-            while (this.doc_bytes_limit < this.doc_bytes_limit + memoryNeeded && this.num_current_docs_used != 0) {//delete least recently used docs until we are under the limit
+            while (this.doc_bytes_limit < this.num_total_bytes_used + memoryNeeded && this.num_current_docs_used != 0) {//delete least recently used docs until we are under the limit
                 removeAllTraceOfLeastUsedDoc();
             }
-        } else if (this.doc_count_limit != -1) {
-            if (this.num_current_docs_used < this.num_current_docs_used + 1 && this.num_current_docs_used != 0) {
+        }
+        if (this.doc_count_limit != -1) {
+            if (this.doc_count_limit < this.num_current_docs_used + 1 && this.num_current_docs_used != 0) {
                 removeAllTraceOfLeastUsedDoc();
             }
         }
@@ -222,7 +223,8 @@ public class DocumentStoreImpl implements DocumentStore {
             while (this.doc_bytes_limit < this.num_total_bytes_used) {
                 removeAllTraceOfLeastUsedDoc();
             }
-        } else if (this.doc_count_limit != -1) {
+        }
+        if (this.doc_count_limit != -1) {
             while (this.doc_count_limit < this.num_current_docs_used) {
                 removeAllTraceOfLeastUsedDoc();
             }
