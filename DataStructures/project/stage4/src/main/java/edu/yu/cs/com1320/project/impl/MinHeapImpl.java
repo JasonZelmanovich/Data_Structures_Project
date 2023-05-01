@@ -13,6 +13,9 @@ public class MinHeapImpl<E extends Comparable<E>> extends MinHeap<E> {
 
     @Override
     public void reHeapify(E element) {
+        if (element == null) {
+            throw new NoSuchElementException();
+        }
         int index = getArrayIndex(element);
         downHeap(index);
         //Maybe check the count here to see if the index exists - possible null pointer being thrown in upHeap method
