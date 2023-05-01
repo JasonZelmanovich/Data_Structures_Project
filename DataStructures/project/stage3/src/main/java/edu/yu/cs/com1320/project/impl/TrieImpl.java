@@ -177,6 +177,9 @@ public class TrieImpl<Value> implements Trie<Value> {
         }
         Node x = get(this.root, key, 0);
         Value tbd = null;
+        if (x.val == null) {
+            return null;
+        }
         if (x != null && x.val.contains(val)) {
             tbd = (Value) val;
             x.val.remove(val);
