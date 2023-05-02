@@ -72,7 +72,7 @@ public class TrieImpl<Value> implements Trie<Value> {
      * @return a List of matching Values, in descending order
      */
     @Override
-    public List<Value> getAllSorted(String key, Comparator comparator) {
+    public List<Value> getAllSorted(String key, Comparator<Value> comparator) {
         if (key == null || comparator == null) {
             throw new IllegalArgumentException("String 'key' or comparator was NULL");
         }
@@ -97,7 +97,7 @@ public class TrieImpl<Value> implements Trie<Value> {
      * @return a List of all matching Values containing the given prefix, in descending order
      */
     @Override
-    public List<Value> getAllWithPrefixSorted(String prefix, Comparator comparator) {
+    public List<Value> getAllWithPrefixSorted(String prefix, Comparator<Value> comparator) {
         if (prefix == null || comparator == null) {
             throw new IllegalArgumentException("Prefix string or comparator was NULL");
         }
