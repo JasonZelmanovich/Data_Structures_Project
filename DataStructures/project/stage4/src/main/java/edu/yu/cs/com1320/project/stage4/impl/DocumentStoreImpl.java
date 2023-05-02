@@ -57,10 +57,13 @@ public class DocumentStoreImpl implements DocumentStore {
             if (temp != null) {// if there was actually something to be deleted
                 this.num_current_docs_used--;
                 int mem;
+                DocumentFormat form;
                 if (temp.getDocumentTxt() != null) {
                     mem = temp.getDocumentTxt().getBytes().length;
+                    form = DocumentFormat.TXT;
                 } else {
                     mem = temp.getDocumentBinaryData().length;
+                    form = DocumentFormat.BINARY;
                 }
                 this.num_total_bytes_used -= mem;
                 temp.setLastUseTime(Long.MIN_VALUE);
@@ -70,7 +73,7 @@ public class DocumentStoreImpl implements DocumentStore {
                     trie.delete(s, temp);
                 }
                 Function undoDeleteLambda = (u) -> {
-                    manageMemoryOnPut(temp, format);//manage memory and then put the undone doc into the docStore
+                    manageMemoryOnPut(temp, form);//manage memory and then put the undone doc into the docStore
                     //put the deleted doc back into the doc store
                     this.num_current_docs_used++;
                     this.num_total_bytes_used += mem;

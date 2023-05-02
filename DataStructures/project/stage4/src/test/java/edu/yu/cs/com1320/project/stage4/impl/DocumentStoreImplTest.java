@@ -102,6 +102,31 @@ class DocumentStoreImplTest {
     }
 
     @Test
+    void deleteExisting() throws IOException {
+        dstore = new DocumentStoreImpl();
+        List<URI> docArray = new ArrayList<>();
+        dstore.setMaxDocumentBytes(1000);
+        for (int i = 0; i < 10; i++) {
+            URI uri = generateRandomURI();
+            InputStream in = new ByteArrayInputStream(generateRandomByteArray(100));
+            dstore.put(in, uri, DocumentStore.DocumentFormat.BINARY);
+            docArray.add(uri);
+        }
+        for (int i = 0; i < 5; i++) {
+            dstore.put(null, docArray.get(i), DocumentStore.DocumentFormat.TXT);
+        }
+        for (int i = 0; i < 5; i++) {
+            assertNull(dstore.get(docArray.get(i)));
+        }
+        for (int i = 0; i < 5; i++) {
+            dstore.undo(docArray.get(i));
+        }
+        for (int i = 0; i < 5; i++) {
+            assertNotNull(dstore.get(docArray.get(i)));
+        }
+    }
+
+    @Test
     void putWithReplace() throws IOException {
         dstore = new DocumentStoreImpl();
         List<URI> docArray = new ArrayList<>();
