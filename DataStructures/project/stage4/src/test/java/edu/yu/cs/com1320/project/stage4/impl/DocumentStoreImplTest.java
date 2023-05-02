@@ -10,8 +10,14 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.lang.reflect.Array;
 import java.net.URI;
 import java.util.*;
+import java.net.URI;
+import java.util.Random;
+import java.security.SecureRandom;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -64,9 +70,152 @@ class DocumentStoreImplTest {
         dstore = null;
     }
 
+    public static byte[] generateRandomByteArray(int length) {
+        SecureRandom random = new SecureRandom();
+        byte[] byteArray = new byte[length];
+        random.nextBytes(byteArray);
+        return byteArray;
+    }
+
+    public static URI generateRandomURI() {
+        String scheme = "http";
+        String host = "example.com";
+        int port = 8080;
+        String path = "/path/to/resource";
+
+        Random random = new Random();
+        String uuid = Integer.toString(random.nextInt(100000));
+        String uriString = String.format("%s://%s:%d%s/%s", scheme, host, port, path, uuid);
+        return URI.create(uriString);
+    }
+
+    public static String generateRandomString(int length) {
+        final String alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        final SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder(length);
+
+        for (int i = 0; i < length; ++i) {
+            sb.append(alphabet.charAt(random.nextInt(alphabet.length())));
+        }
+
+        return sb.toString();
+    }
+
+    @Test
+    void putWithReplace() throws IOException {
+        dstore = new DocumentStoreImpl();
+        List<URI> docArray = new ArrayList<>();
+        dstore.setMaxDocumentBytes(1000);
+        for (int i = 0; i < 10; i++) {
+            URI uri = generateRandomURI();
+            InputStream in = new ByteArrayInputStream(generateRandomByteArray(100));
+            dstore.put(in, uri, DocumentStore.DocumentFormat.BINARY);
+            docArray.add(uri);
+        }
+        for (int i = 0; i < 2; i++) {
+            InputStream in = new ByteArrayInputStream(new String("Shoudld be in").getBytes());
+            dstore.put(in, docArray.get(i), DocumentStore.DocumentFormat.TXT);
+        }
+        for (int i = 0; i < 2; i++) {
+            Document doc = new DocumentImpl(docArray.get(i), new String("Shoudld be in"));
+            assertEquals(dstore.get(docArray.get(i)), doc);
+        }
+    }
+
+    @Test
+    void putThenDeleteThenUndo_memory() throws IOException {
+        dstore = new DocumentStoreImpl();
+        List<URI> docArray = new ArrayList<>();
+        Document[] docs = new Document[10];
+
+        for (int i = 0; i < 10; i++) {
+            URI uri = generateRandomURI();
+            docs[i] = new DocumentImpl(uri, "test");
+            InputStream in = new ByteArrayInputStream(generateRandomByteArray(100));
+            dstore.put(in, uri, DocumentStore.DocumentFormat.BINARY);
+            docArray.add(uri);
+        }
+        for (URI u : docArray) {
+            dstore.delete(u);
+        }
+        dstore.setMaxDocumentBytes(100);
+        for (int i = 9; i >= 0; i--) {
+            dstore.undo();
+            assertEquals(dstore.get(docs[i].getKey()).getKey(), docs[i].getKey());
+        }
+    }
+
+    @Test
+    void putWithDocsOverLimitCount() throws IOException {
+        dstore = new DocumentStoreImpl();
+        dstore.setMaxDocumentCount(10);
+        List<URI> docArray = new ArrayList<>();
+        Document[] docs = new Document[10];
+        for (int i = 0; i < 10; i++) {
+            URI uri = generateRandomURI();
+            docs[i] = new DocumentImpl(uri, "test");
+            InputStream in = new ByteArrayInputStream(generateRandomByteArray(100));
+            dstore.put(in, uri, DocumentStore.DocumentFormat.BINARY);
+            docArray.add(uri);
+        }
+        //put one doc over the limit
+        URI u = URI.create("Extrashouldbeherebottomofheap");
+        dstore.put(new ByteArrayInputStream(generateRandomByteArray(1)), u, DocumentStore.DocumentFormat.BINARY);
+        assertEquals(dstore.get(u).getKey(), u);
+        assertNull(dstore.get(docArray.get(0)));
+        //put multiple over the limit
+        ArrayList<URI> newUri = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            URI p = generateRandomURI();
+            newUri.add(p);
+            InputStream in = new ByteArrayInputStream(generateRandomByteArray(100));
+            dstore.put(in, p, DocumentStore.DocumentFormat.BINARY);
+        }
+        for (URI p : newUri) {
+            assertNotNull(dstore.get(p));
+        }
+        for (URI p : docArray) {
+            assertNull(dstore.get(p));
+        }
+    }
+
+    @Test
+    void putWithDocsOverLimitByte() throws IOException {
+        //Bytes Test
+        dstore = new DocumentStoreImpl();
+        dstore.setMaxDocumentBytes(1000);
+        List<URI> docArray = new ArrayList<>();
+        Document[] docs = new Document[10];
+        for (int i = 0; i < 10; i++) {
+            URI uri = generateRandomURI();
+            docs[i] = new DocumentImpl(uri, "test");
+            InputStream in = new ByteArrayInputStream(generateRandomByteArray(100));
+            dstore.put(in, uri, DocumentStore.DocumentFormat.BINARY);
+            docArray.add(uri);
+        }
+        //put one doc over the limit
+        URI u = URI.create("Extrashouldbeherebottomofheap");
+        dstore.put(new ByteArrayInputStream(generateRandomByteArray(1)), u, DocumentStore.DocumentFormat.BINARY);
+        assertEquals(dstore.get(u).getKey(), u);
+        assertNull(dstore.get(docArray.get(0)));
+        //put multiple over the limit
+        ArrayList<URI> newUri = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            URI p = generateRandomURI();
+            newUri.add(p);
+            InputStream in = new ByteArrayInputStream(generateRandomByteArray(100));
+            dstore.put(in, p, DocumentStore.DocumentFormat.BINARY);
+        }
+        for (URI p : newUri) {
+            assertNotNull(dstore.get(p));
+        }
+        for (URI p : docArray) {
+            assertNull(dstore.get(p));
+        }
+    }
+
     @Test
     void put() throws IOException {
-
         assertEquals(dstore.put(stream1, u1, text), 0); // first entry for uri so returns 03
         assertEquals(dstore.get(u1).getDocumentTxt(), "Jason");// Input Stream passed in TEXT: "Jason"
         assertNull(dstore.get(u1).getDocumentBinaryData());
@@ -77,6 +226,12 @@ class DocumentStoreImplTest {
         stream2 = new ByteArrayInputStream(ste.getBytes());
         assertEquals(dstore.put(stream2, u2, binary), 0);
 
+        assertThrows(IllegalArgumentException.class, () -> {
+            dstore.put(null, null, DocumentStore.DocumentFormat.TXT);
+        });
+        assertThrows(IllegalArgumentException.class, () -> {
+            dstore.put(null, URI.create("Test"), null);
+        });
 
         //adding with a doc prior
         int code = dstore.get(u1).hashCode();
@@ -113,7 +268,9 @@ class DocumentStoreImplTest {
         assertFalse(dstore.delete(URI.create("foop")));
         assertTrue(dstore.delete(u1));
         assertFalse(dstore.delete(u1));
-
+        assertThrows(IllegalArgumentException.class, () -> {
+            dstore.delete(null);
+        });
         assertEquals(dstore.put(stream2, u2, text), 0);
         assertFalse(dstore.delete(URI.create("testing123")));
         assertTrue(dstore.delete(u2));
