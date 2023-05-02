@@ -102,6 +102,27 @@ class DocumentStoreImplTest {
     }
 
     @Test
+    void RemoveAllTraceWhenDocInCmdSet() throws IOException {
+        dstore = new DocumentStoreImpl();
+        List<URI> docArray = new ArrayList<>();
+        dstore.setMaxDocumentBytes(500);
+        String s = "Delete togethe should be 10 of these and 50 length";
+        for (int i = 0; i < 10; i++) {
+            URI uri = generateRandomURI();
+            InputStream in = new ByteArrayInputStream(s.getBytes());
+            dstore.put(in, uri, DocumentStore.DocumentFormat.TXT);
+            docArray.add(uri);
+        }
+        dstore.deleteAll("Delete"); // delete all with given keyword
+        s = "This one to be deletedd from cmdset";
+        dstore.put(new ByteArrayInputStream(s.getBytes()), docArray.get(0), DocumentStore.DocumentFormat.TXT);
+        dstore.setMaxDocumentBytes(0);//should remove all trace of one of the docs (check for in the cmd set)
+        //int len = dstore.search("Delete").size();
+        //assertEquals(len,9);
+
+    }
+
+    @Test
     void deleteExisting() throws IOException {
         dstore = new DocumentStoreImpl();
         List<URI> docArray = new ArrayList<>();
