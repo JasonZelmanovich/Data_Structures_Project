@@ -74,8 +74,7 @@ public class WrongBTree<Key extends Comparable<Key>, Value>
             return this.previous;
         }
 
-        private Entry[] getEntries()
-        {
+        private Entry[] getEntries() {
             return Arrays.copyOf(this.entries, this.entryCount);
         }
 
