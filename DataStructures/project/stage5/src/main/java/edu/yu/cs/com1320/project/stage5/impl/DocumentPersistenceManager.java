@@ -16,7 +16,7 @@ import java.util.Map;
  * created by the document store and given to the BTree via a call to BTree.setPersistenceManager
  */
 public class DocumentPersistenceManager implements PersistenceManager<URI, Document> {
-    JsonSerializer<Document> documentJsonSerializer = new JsonSerializer<Document>() {
+    private JsonSerializer<Document> documentJsonSerializer = new JsonSerializer<Document>() {
         @Override
         public JsonElement serialize(Document document, Type type, JsonSerializationContext jsonSerializationContext) {
             JsonObject obj = new JsonObject();
@@ -34,7 +34,7 @@ public class DocumentPersistenceManager implements PersistenceManager<URI, Docum
         }
     };
 
-    JsonDeserializer<Document> documentJsonDeserializer = new JsonDeserializer<Document>() {
+    private JsonDeserializer<Document> documentJsonDeserializer = new JsonDeserializer<Document>() {
         @Override
         public Document deserialize(JsonElement jsonElement, Type type, JsonDeserializationContext jsonDeserializationContext) throws JsonParseException {
             JsonObject jsonObject = jsonElement.getAsJsonObject();
@@ -50,9 +50,9 @@ public class DocumentPersistenceManager implements PersistenceManager<URI, Docum
             return doc;
         }
     };
-    GsonBuilder builder = new GsonBuilder();
-    Gson gson;
-    File baseDir = null;
+    private GsonBuilder builder = new GsonBuilder();
+    private Gson gson;
+    private File baseDir = null;
     public DocumentPersistenceManager(File baseDir){
         if(baseDir.isDirectory()){
             this.baseDir = baseDir;
