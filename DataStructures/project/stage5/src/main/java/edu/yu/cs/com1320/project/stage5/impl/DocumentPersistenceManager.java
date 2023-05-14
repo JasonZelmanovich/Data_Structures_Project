@@ -21,13 +21,15 @@ public class DocumentPersistenceManager implements PersistenceManager<URI, Docum
         public JsonElement serialize(Document document, Type type, JsonSerializationContext jsonSerializationContext) {
             JsonObject obj = new JsonObject();
             if(document.getDocumentTxt() != null){
-                obj.addProperty("txt",gson.toJson(document.getDocumentTxt()));
-                obj.addProperty("wordMap",gson.toJson(document.getWordMap()));
+                obj.addProperty("txt", document.getDocumentTxt());
+                JsonElement element = gson.toJsonTree(document.getWordMap());
+                obj.add("wordMap", element);
             }else{
                 String base64Encoded = DatatypeConverter.printBase64Binary(document.getDocumentBinaryData());
-                obj.addProperty("binaryData",gson.toJson(base64Encoded));
+                obj.addProperty("binaryData",base64Encoded);
             }
-            obj.addProperty("uri", gson.toJson(document.getKey()));
+            JsonElement element = gson.toJsonTree(document.getKey());
+            obj.add("uri", element);
             return obj;
         }
     };
@@ -55,7 +57,7 @@ public class DocumentPersistenceManager implements PersistenceManager<URI, Docum
         if(baseDir.isDirectory()){
             this.baseDir = baseDir;
         }
-        builder.registerTypeAdapter(Document.class,documentJsonSerializer);
+        builder.registerTypeAdapter(Document.class, documentJsonSerializer);
         builder.registerTypeAdapter(Document.class, documentJsonDeserializer);
         gson = builder.create();
     }
@@ -74,7 +76,7 @@ public class DocumentPersistenceManager implements PersistenceManager<URI, Docum
     public void serialize(URI uri, Document val) throws IOException {
         String host = uri.getHost();
         String dir;
-        String jsonDoc = gson.toJson(val);
+        String jsonDoc = gson.toJson(val,Document.class);
         dir = getBase();
         File file = new File(dir, host + uri.getPath() + ".json");
         if(!file.getParentFile().isDirectory()){
