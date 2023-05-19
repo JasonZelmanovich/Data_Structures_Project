@@ -294,7 +294,7 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         private BTreeImpl.Node previous;
 
         // create a node with k entries
-        private Node(int k) {
+        public Node(int k) {
             this.entryCount = k;
         }
 

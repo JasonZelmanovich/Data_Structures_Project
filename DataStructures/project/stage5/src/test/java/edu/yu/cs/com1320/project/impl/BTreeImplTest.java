@@ -30,7 +30,7 @@ class BTreeImplTest {
 
     @Test
     void moveToDisk1() throws Exception {
-        PersistenceManager pm = new DocumentPersistenceManager(new File("C:\\Users\\jason\\Desktop\\www.google.com\\testing123\\"));
+        PersistenceManager pm = new DocumentPersistenceManager(new File("C:\\Users\\jason\\Desktop\\www.google.com\\testing123"));
         BTreeImpl<URI,Document> btree = new BTreeImpl<>();
         URI j = URI.create("Jason");
         Document doc = new DocumentImpl(j,"Hello World",null);
@@ -76,6 +76,12 @@ class BTreeImplTest {
 
     @AfterAll
     static void deleteAll(){
-
+        File f1 = new File("C:\\Users\\jason\\Desktop\\www.google.com\\testing123");
+        File f2 = new File("C:\\Users\\jason\\Desktop\\www.google.com\\NewFileTest\\yu.instructure.com");
+        f1.delete();
+        f1.getParentFile().delete();
+        f2.delete();
+        f2.getParentFile().delete();
+        f2.getParentFile().getParentFile().delete();
     }
 }
