@@ -19,10 +19,64 @@ import java.util.*;
 import java.util.function.Function;
 
 public class DocumentStoreImpl implements DocumentStore {
+    private class heapUriNode implements Comparable<heapUriNode>{
+        URI uri;
+        public heapUriNode(URI u){
+            this.uri = u;
+        }
+
+
+        /**
+         * Compares this object with the specified object for order.  Returns a
+         * negative integer, zero, or a positive integer as this object is less
+         * than, equal to, or greater than the specified object.
+         *
+         * <p>The implementor must ensure {@link Integer#signum
+         * signum}{@code (x.compareTo(y)) == -signum(y.compareTo(x))} for
+         * all {@code x} and {@code y}.  (This implies that {@code
+         * x.compareTo(y)} must throw an exception if and only if {@code
+         * y.compareTo(x)} throws an exception.)
+         *
+         * <p>The implementor must also ensure that the relation is transitive:
+         * {@code (x.compareTo(y) > 0 && y.compareTo(z) > 0)} implies
+         * {@code x.compareTo(z) > 0}.
+         *
+         * <p>Finally, the implementor must ensure that {@code
+         * x.compareTo(y)==0} implies that {@code signum(x.compareTo(z))
+         * == signum(y.compareTo(z))}, for all {@code z}.
+         *
+         * @param o the object to be compared.
+         * @return a negative integer, zero, or a positive integer as this object
+         * is less than, equal to, or greater than the specified object.
+         * @throws NullPointerException if the specified object is null
+         * @throws ClassCastException   if the specified object's type prevents it
+         *                              from being compared to this object.
+         * @apiNote It is strongly recommended, but <i>not</i> strictly required that
+         * {@code (x.compareTo(y)==0) == (x.equals(y))}.  Generally speaking, any
+         * class that implements the {@code Comparable} interface and violates
+         * this condition should clearly indicate this fact.  The recommended
+         * language is "Note: this class has a natural ordering that is
+         * inconsistent with equals."
+         */
+        @Override
+        public int compareTo(heapUriNode o) {
+            if (o == null) {
+                throw new NullPointerException();
+            }
+            if (btree.get(uri).getLastUseTime() < btree.get(p).getLastUseTime()) {
+                return -1;
+            } else if (btree.get(uri).getLastUseTime() > btree.get(o).getLastUseTime()) {
+                return 1;
+            } else {
+                return 0;
+
+            }
+        }
+    }
     private StackImpl<Undoable> cmdStack;
     private BTreeImpl<URI, DocumentImpl> btree;
     private TrieImpl<URI> trie;
-    private MinHeapImpl<URI> minHeap;
+    private MinHeapImpl<heapUriNode> minHeap;
     private PersistenceManager pm;
     private int doc_count_limit;
     private int doc_bytes_limit;
@@ -85,7 +139,7 @@ public class DocumentStoreImpl implements DocumentStore {
                 }
                 this.num_total_bytes_used -= mem;
                 temp.setLastUseTime(Long.MIN_VALUE);
-                minHeap.reHeapify(temp.getKey());
+                minHeap.reHeapify(new heapUriNode(temp.getKey()));
                 minHeap.remove();
                 for (String s : temp.getWords()) {
                     trie.delete(s, temp.getKey());
@@ -99,7 +153,7 @@ public class DocumentStoreImpl implements DocumentStore {
                         trie.put(s, temp.getKey());
                     }
                     temp.setLastUseTime(System.nanoTime());
-                    minHeap.insert(temp.getKey());
+                    minHeap.insert(new heapUriNode(temp.getKey()));
                     return btree.put((URI) u, temp) == null;
                 };
                 cmdStack.push(new GenericCommand<URI>(uri, undoDeleteLambda));
@@ -141,7 +195,7 @@ public class DocumentStoreImpl implements DocumentStore {
         //Already inserted into trie, now btree
         old = btree.put(uri, doc);
         btree.get(uri).setLastUseTime(System.nanoTime());
-        this.minHeap.insert(uri);
+        this.minHeap.insert(new heapUriNode(uri));
         //All insertions finished
         storeDocUndoLogic(old, doc, uri, memory);//Handle deletion of OLD if necessary, create the undo lambda, check for old doc existence
         this.num_current_docs_used++; // update docStore memory status in regard to number of documents
@@ -157,7 +211,7 @@ public class DocumentStoreImpl implements DocumentStore {
         int oldMem;
         if (old != null) { //If an old document was being replaced
             old.setLastUseTime(Long.MIN_VALUE);
-            this.minHeap.reHeapify(old.getKey());
+            this.minHeap.reHeapify(new heapUriNode(old.getKey()));
             minHeap.remove();
             //removed Old doc from the heap
             for (String word : old.getWords()) {//delete all trace of old doc from the TRIE
@@ -178,7 +232,7 @@ public class DocumentStoreImpl implements DocumentStore {
                     trie.delete(word, doc.getKey());
                 }
                 doc.setLastUseTime(Long.MIN_VALUE);
-                minHeap.reHeapify(doc.getKey());
+                minHeap.reHeapify(new heapUriNode(doc.getKey()));
                 minHeap.remove();//remove new doc from the heap
                 this.num_current_docs_used--;//update memory status for # of docs
                 this.num_total_bytes_used -= new_doc_mem; // remove the new doc memory size from docStores memory status
@@ -187,7 +241,7 @@ public class DocumentStoreImpl implements DocumentStore {
                     trie.put(word, old.getKey());
                 }
                 old.setLastUseTime(System.nanoTime());
-                minHeap.insert(old.getKey());//put old doc into the heap with new time
+                minHeap.insert(new heapUriNode(old.getKey()));//put old doc into the heap with new time
                 //update docStore memory status
                 this.num_current_docs_used++;
                 this.num_total_bytes_used += oldMem;
@@ -199,7 +253,7 @@ public class DocumentStoreImpl implements DocumentStore {
                     trie.delete(word, doc.getKey());
                 }
                 doc.setLastUseTime(Long.MIN_VALUE);
-                minHeap.reHeapify(doc.getKey());
+                minHeap.reHeapify(new heapUriNode(doc.getKey()));
                 minHeap.remove();
                 this.num_current_docs_used--;
                 this.num_current_docs_used -= new_doc_mem;
