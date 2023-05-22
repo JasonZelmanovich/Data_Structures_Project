@@ -339,9 +339,6 @@ public class DocumentStoreImpl implements DocumentStore {
             } else {
                 memoryNeeded += newDoc.getDocumentBinaryData().length;
             }
-            if (memoryNeeded > this.doc_bytes_limit) {
-                throw new IllegalArgumentException();
-            }
             while (this.doc_bytes_limit < this.num_total_bytes_used + memoryNeeded && this.num_current_docs_used != 0) {//delete least recently used docs until we are under the limit
                 removeAllTraceOfLeastUsedDoc();
             }
@@ -430,6 +427,7 @@ public class DocumentStoreImpl implements DocumentStore {
             }
             if(uriOnDisk.contains(temp.getKey())){
                 addOldToHeap(temp);
+                uriOnDisk.remove(temp.getKey());
             }
             temp.setLastUseTime(Long.MIN_VALUE);
             nodeHashMap.get(temp.getKey()).setLastUseTime(temp.getLastUseTime());
@@ -625,6 +623,10 @@ public class DocumentStoreImpl implements DocumentStore {
             }
             for (String w : btree.get(u).getWords()) {//remove the doc to be deleted from the trie
                 trie.delete(w, u);
+            }
+            if(uriOnDisk.contains(u)){
+                addOldToHeap(btree.get(u));
+                uriOnDisk.remove(u);
             }
             btree.get(u).setLastUseTime(Long.MIN_VALUE);
             nodeHashMap.get(u).setLastUseTime(btree.get(u).getLastUseTime());
