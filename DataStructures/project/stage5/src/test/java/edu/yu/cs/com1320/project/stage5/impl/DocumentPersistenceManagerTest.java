@@ -13,7 +13,7 @@ class DocumentPersistenceManagerTest {
 
     @Test
     void serialize() throws IOException {
-        File baseDir = new File("C:\\Users\\jason\\Desktop");
+        File baseDir = new File("/Users/jason/Desktop");
         DocumentPersistenceManager manager = new DocumentPersistenceManager(baseDir);
         URI uri = URI.create("https://www.google.com/Testing123/doc");
         Document doc = new DocumentImpl(uri,"Shalom this is my text of stuff",null);
@@ -23,7 +23,7 @@ class DocumentPersistenceManagerTest {
     @Test
     void deserialize() throws IOException {
         URI uri = URI.create("https://www.google.com/Testing123/doc");
-        File baseDir = new File("C:\\Users\\jason\\Desktop");
+        File baseDir = new File("/Users/jason/Desktop");
         DocumentPersistenceManager manager = new DocumentPersistenceManager(baseDir);
         Document doc = manager.deserialize(uri);
 
@@ -32,7 +32,7 @@ class DocumentPersistenceManagerTest {
     @Test
     void delete() throws IOException {
         URI uri = URI.create("https://www.google.com/Testing123/doc");
-        File baseDir = new File("C:\\Users\\jason\\Desktop");
+        File baseDir = new File("/Users/jason/Desktop");
         DocumentPersistenceManager manager = new DocumentPersistenceManager(baseDir);
         manager.delete(uri);
     }
