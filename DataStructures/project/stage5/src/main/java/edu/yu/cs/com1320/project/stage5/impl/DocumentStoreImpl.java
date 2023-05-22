@@ -22,10 +22,8 @@ import java.util.function.Function;
 public class DocumentStoreImpl implements DocumentStore {
     private class Node implements Comparable<Node>{
         URI uri;
-        private long nanoTime;
         public Node(URI u){
             this.uri = u;
-            this.nanoTime = 0;
         }
         public URI getUri(){
             return this.uri;
@@ -340,13 +338,42 @@ public class DocumentStoreImpl implements DocumentStore {
         Document gotDoc = btree.get(uri);
         if (gotDoc != null) {
             if(uriOnDisk.contains(gotDoc.getKey())){
-                addOldToHeap(gotDoc);
                 uriOnDisk.remove(gotDoc.getKey());
+                if(gotDoc.getDocumentTxt() != null){
+                    manageMemoryOnPut(gotDoc,DocumentFormat.TXT);
+                    num_total_bytes_used += gotDoc.getDocumentTxt().getBytes().length;
+                }else{
+                    manageMemoryOnPut(gotDoc ,DocumentFormat.BINARY);
+                    num_total_bytes_used += gotDoc.getDocumentBinaryData().length;
+                }
+                addOldToHeap(gotDoc);
+                num_current_docs_used++;
             }
             gotDoc.setLastUseTime(System.nanoTime());
             minHeap.reHeapify(nodeHashMap.get(gotDoc.getKey()));
         }
         return gotDoc;
+    }
+    private boolean checkTooLarge(Document newDoc, DocumentFormat format){
+        if (this.doc_bytes_limit != -1) {
+            int memoryNeeded = 0;
+            if (format.equals(DocumentFormat.TXT)) {
+                memoryNeeded += newDoc.getDocumentTxt().getBytes().length;
+            } else {
+                memoryNeeded += newDoc.getDocumentBinaryData().length;
+            }
+            if(memoryNeeded > this.doc_bytes_limit){
+                try {
+                    btree.moveToDisk(newDoc.getKey()); //Least used doc is moved out of memory and into disk
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                this.num_total_bytes_used -= memoryNeeded;
+                this.num_current_docs_used--;
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -364,6 +391,15 @@ public class DocumentStoreImpl implements DocumentStore {
                 memoryNeeded += newDoc.getDocumentTxt().getBytes().length;
             } else {
                 memoryNeeded += newDoc.getDocumentBinaryData().length;
+            }
+            if(memoryNeeded > this.doc_bytes_limit){
+                try {
+                    btree.moveToDisk(newDoc.getKey()); //Least used doc is moved out of memory and into disk
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                this.num_total_bytes_used -= memoryNeeded;
+                this.num_current_docs_used--;
             }
             while (this.doc_bytes_limit < this.num_total_bytes_used + memoryNeeded && this.num_current_docs_used != 0) {//delete least recently used docs until we are under the limit
                 removeAllTraceOfLeastUsedDoc();
@@ -618,7 +654,15 @@ public class DocumentStoreImpl implements DocumentStore {
         long time = System.nanoTime();
         for (URI u : trie.getAllSorted(keyword, docComparatorDescending)) {
             if(uriOnDisk.contains(btree.get(u).getKey())){
+                if(btree.get(u).getDocumentTxt() != null){
+                    manageMemoryOnPut(btree.get(u),DocumentFormat.TXT);
+                    num_total_bytes_used += btree.get(u).getDocumentTxt().getBytes().length;
+                }else{
+                    manageMemoryOnPut(btree.get(u),DocumentFormat.BINARY);
+                    num_total_bytes_used += btree.get(u).getDocumentBinaryData().length;
+                }
                 addOldToHeap(btree.get(u));
+                num_current_docs_used++;
                 uriOnDisk.remove(btree.get(u).getKey());
             }
             btree.get(u).setLastUseTime(time);
@@ -665,7 +709,15 @@ public class DocumentStoreImpl implements DocumentStore {
         long time = System.nanoTime();
         for (URI u : listOfDocs) {
             if(uriOnDisk.contains(btree.get(u).getKey())){
+                if(btree.get(u).getDocumentTxt() != null){
+                    manageMemoryOnPut(btree.get(u),DocumentFormat.TXT);
+                    num_total_bytes_used += btree.get(u).getDocumentTxt().getBytes().length;
+                }else{
+                    manageMemoryOnPut(btree.get(u),DocumentFormat.BINARY);
+                    num_total_bytes_used += btree.get(u).getDocumentBinaryData().length;
+                }
                 addOldToHeap(btree.get(u));
+                num_current_docs_used++;
                 uriOnDisk.remove(btree.get(u).getKey());
             }
             btree.get(u).setLastUseTime(time);

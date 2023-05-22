@@ -1,6 +1,7 @@
 package edu.yu.cs.com1320.project.stage5.impl;
 
 import com.google.gson.*;
+import com.google.gson.reflect.TypeToken;
 import edu.yu.cs.com1320.project.stage5.Document;
 import edu.yu.cs.com1320.project.stage5.PersistenceManager;
 import jakarta.xml.bind.DatatypeConverter;
@@ -22,14 +23,14 @@ public class DocumentPersistenceManager implements PersistenceManager<URI, Docum
             JsonObject obj = new JsonObject();
             if(document.getDocumentTxt() != null){
                 obj.addProperty("txt", document.getDocumentTxt());
-                JsonElement element = gson.toJsonTree(document.getWordMap());
-                obj.add("wordMap", element);
+                String map = gson.toJson(document.getWordMap());
+                obj.addProperty("wordMap", map);
             }else{
                 String base64Encoded = DatatypeConverter.printBase64Binary(document.getDocumentBinaryData());
                 obj.addProperty("binaryData",base64Encoded);
             }
             JsonElement element = gson.toJsonTree(document.getKey());
-            obj.add("uri", element);
+            obj.addProperty("uri", document.getKey().toString());
             return obj;
         }
     };
@@ -39,9 +40,10 @@ public class DocumentPersistenceManager implements PersistenceManager<URI, Docum
         public Document deserialize(JsonElement jsonElement, Type type, JsonDeserializationContext jsonDeserializationContext) throws JsonParseException {
             JsonObject jsonObject = jsonElement.getAsJsonObject();
             Document doc;
+            Type typeMap = new TypeToken<Map<String, Integer>>() { }.getType();
             URI uri = URI.create(jsonObject.get("uri").getAsString());
             if(jsonObject.has("txt")){
-                Map<String, Integer> map = gson.fromJson(jsonObject.get("wordMap"), Map.class);
+                Map<String, Integer> map = gson.fromJson(jsonObject.get("wordMap").getAsString(), typeMap);
                 doc = new DocumentImpl(uri,jsonObject.get("txt").getAsString(),map);
             }else{
                 byte[] base64Decoded = DatatypeConverter.parseBase64Binary(jsonObject.get("binaryData").getAsString());

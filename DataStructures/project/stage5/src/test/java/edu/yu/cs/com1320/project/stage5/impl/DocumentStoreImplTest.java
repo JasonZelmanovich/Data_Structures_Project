@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -53,10 +54,10 @@ class DocumentStoreImplTest {
         u6 = URI.create("text4");
         stream6 = new ByteArrayInputStream(text4.getBytes());
 
-        dstore.put(stream3, u3, text);
-        dstore.put(stream4, u4, text);
-        dstore.put(stream5, u5, text);
-        dstore.put(stream6, u6, text);
+//        dstore.put(stream3, u3, text);
+//        dstore.put(stream4, u4, text);
+//        dstore.put(stream5, u5, text);
+//        dstore.put(stream6, u6, text);
     }
 
     @AfterEach
@@ -536,4 +537,28 @@ class DocumentStoreImplTest {
         assertEquals(dstore.deleteAllWithPrefix("a"), Collections.EMPTY_SET);
     }
 
+    @Test
+    void putOverflowToDisk() throws IOException {
+        Document t1 = new DocumentImpl(u3,text1,null);
+        Document t2 = new DocumentImpl(u4,text2,null);
+        Document t3 = new DocumentImpl(u5,text3,null);
+        Document t4 = new DocumentImpl(u6,text4,null);
+        int bytesUsed = t1.getDocumentTxt().getBytes().length + t2.getDocumentTxt().getBytes().length + t3.getDocumentTxt().getBytes().length + t4.getDocumentTxt().getBytes().length;
+        System.out.println("bytes used: " + bytesUsed);
+        dstore = new DocumentStoreImpl(new File("C:\\Users\\jason\\Desktop\\test2"));
+        dstore.put(stream3, u3, text);
+        dstore.put(stream4, u4, text);
+        dstore.put(stream5, u5, text);
+        dstore.put(stream6, u6, text);
+        //first test to user.dir , starting with 4 docs in memory
+        dstore.setMaxDocumentCount(3);//should move text1 doc to disk,  3 docs in memory
+        assertEquals(t1,dstore.get(u3));//should move text2 into disk and take text 1 into memory,  still 3 docs in memory
+        dstore.setMaxDocumentCount(2);//should have text2 and text3 on the disk, text1 & text 4 in memory
+        dstore.setMaxDocumentBytes(0);//should move text1 and text4 into memory, nothing in memory
+        dstore.setMaxDocumentBytes(bytesUsed);
+        dstore.setMaxDocumentCount(4);
+        dstore.search("non");
+        dstore.searchByPrefix("com"); // all docs should be removed from disk and back into memory
+        dstore.put(new ByteArrayInputStream(generateRandomByteArray(2565)),URI.create("Go_Straight_to_folder"),binary);
+    }
 }
