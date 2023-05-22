@@ -11,6 +11,7 @@ import edu.yu.cs.com1320.project.stage5.Document;
 import edu.yu.cs.com1320.project.stage5.DocumentStore;
 import edu.yu.cs.com1320.project.stage5.PersistenceManager;
 
+import javax.print.Doc;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,13 +20,22 @@ import java.util.*;
 import java.util.function.Function;
 
 public class DocumentStoreImpl implements DocumentStore {
-    private class heapUriNode implements Comparable<heapUriNode>{
+    private class Node implements Comparable<Node>{
         URI uri;
-        public heapUriNode(URI u){
+        private long nanoTime;
+        public Node(URI u){
             this.uri = u;
+            this.nanoTime = 0;
         }
-
-
+        public long getLastUseTime() {
+            return this.nanoTime;
+        }
+        public void setLastUseTime(long timeInNanoseconds) {
+            this.nanoTime = timeInNanoseconds;
+        }
+        public URI getUri(){
+            return this.uri;
+        }
         /**
          * Compares this object with the specified object for order.  Returns a
          * negative integer, zero, or a positive integer as this object is less
@@ -59,24 +69,36 @@ public class DocumentStoreImpl implements DocumentStore {
          * inconsistent with equals."
          */
         @Override
-        public int compareTo(heapUriNode o) {
+        public int compareTo(Node o) {
             if (o == null) {
                 throw new NullPointerException();
             }
-            if (btree.get(uri).getLastUseTime() < btree.get(p).getLastUseTime()) {
+            if (this.getLastUseTime() < o.getLastUseTime()) {
                 return -1;
-            } else if (btree.get(uri).getLastUseTime() > btree.get(o).getLastUseTime()) {
+            } else if (this.getLastUseTime() > o.getLastUseTime()) {
                 return 1;
             } else {
                 return 0;
-
             }
         }
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Node node = (Node) o;
+            return Objects.equals(uri, node.uri);
+        }
+        @Override
+        public int hashCode() {
+            return Objects.hash(uri);
+        }
     }
+    private HashMap<URI,Node> nodeHashMap;
+    private HashSet<URI> uriOnDisk;
     private StackImpl<Undoable> cmdStack;
     private BTreeImpl<URI, DocumentImpl> btree;
     private TrieImpl<URI> trie;
-    private MinHeapImpl<heapUriNode> minHeap;
+    private MinHeapImpl<Node> minHeap;
     private PersistenceManager pm;
     private int doc_count_limit;
     private int doc_bytes_limit;
@@ -84,6 +106,8 @@ public class DocumentStoreImpl implements DocumentStore {
     private int num_total_bytes_used;
 
     public DocumentStoreImpl() {
+        uriOnDisk = new HashSet<>();
+        nodeHashMap = new HashMap<>();
         btree = new BTreeImpl<>();
         cmdStack = new StackImpl<>();
         trie = new TrieImpl<>();
@@ -97,6 +121,8 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     public DocumentStoreImpl(File baseDir){
+        uriOnDisk = new HashSet<>();
+        nodeHashMap = new HashMap<>();
         btree = new BTreeImpl<>();
         cmdStack = new StackImpl<>();
         trie = new TrieImpl<>();
@@ -138,8 +164,15 @@ public class DocumentStoreImpl implements DocumentStore {
                     form = DocumentFormat.BINARY;
                 }
                 this.num_total_bytes_used -= mem;
+                //Check if temp was moved to disk earlier
+                if(uriOnDisk.contains(temp.getKey())){//if it was moved to disk add it back to the heap for proper removal from heap
+                    addOldToHeap(temp);
+                    uriOnDisk.remove(temp.getKey());
+                }
                 temp.setLastUseTime(Long.MIN_VALUE);
-                minHeap.reHeapify(new heapUriNode(temp.getKey()));
+                nodeHashMap.get(temp.getKey()).setLastUseTime(temp.getLastUseTime());
+                minHeap.reHeapify(nodeHashMap.get(temp.getKey()));
+                nodeHashMap.remove(temp.getKey());
                 minHeap.remove();
                 for (String s : temp.getWords()) {
                     trie.delete(s, temp.getKey());
@@ -153,7 +186,10 @@ public class DocumentStoreImpl implements DocumentStore {
                         trie.put(s, temp.getKey());
                     }
                     temp.setLastUseTime(System.nanoTime());
-                    minHeap.insert(new heapUriNode(temp.getKey()));
+                    Node n = new Node(temp.getKey());
+                    n.setLastUseTime(temp.getLastUseTime());
+                    nodeHashMap.put(temp.getKey(),n);
+                    minHeap.insert(nodeHashMap.get(temp.getKey()));
                     return btree.put((URI) u, temp) == null;
                 };
                 cmdStack.push(new GenericCommand<URI>(uri, undoDeleteLambda));
@@ -194,8 +230,23 @@ public class DocumentStoreImpl implements DocumentStore {
         this.num_total_bytes_used += memory;
         //Already inserted into trie, now btree
         old = btree.put(uri, doc);
-        btree.get(uri).setLastUseTime(System.nanoTime());
-        this.minHeap.insert(new heapUriNode(uri));
+        if(old != null){
+            if(uriOnDisk.contains(old.getKey())){
+                addOldToHeap(old);
+                uriOnDisk.remove(old.getKey());
+            }
+            old.setLastUseTime(Long.MIN_VALUE);
+            nodeHashMap.get(old.getKey()).setLastUseTime(old.getLastUseTime());
+            this.minHeap.reHeapify(nodeHashMap.get(old.getKey()));
+            minHeap.remove();
+            //removed Old doc from the heap
+            nodeHashMap.remove(old.getKey());
+        }
+        doc.setLastUseTime(System.nanoTime());
+        Node n = new Node(uri);
+        n.setLastUseTime(btree.get(uri).getLastUseTime());
+        nodeHashMap.put(uri,n);
+        this.minHeap.insert(nodeHashMap.get(uri));
         //All insertions finished
         storeDocUndoLogic(old, doc, uri, memory);//Handle deletion of OLD if necessary, create the undo lambda, check for old doc existence
         this.num_current_docs_used++; // update docStore memory status in regard to number of documents
@@ -203,17 +254,19 @@ public class DocumentStoreImpl implements DocumentStore {
         manageMemory();
         return tbr;
     }
-
+    private void addOldToHeap(Document d){
+        Node n = new Node(d.getKey());
+        n.setLastUseTime(Long.MIN_VALUE);
+        nodeHashMap.put(d.getKey(),n);
+        minHeap.insert(nodeHashMap.get(d.getKey()));
+    }
     private void storeDocUndoLogic(Document old, Document doc, URI uri, int newMem) {
         Function undoReplaceLambda;
         DocumentFormat oldformat;
         int new_doc_mem = newMem;
         int oldMem;
         if (old != null) { //If an old document was being replaced
-            old.setLastUseTime(Long.MIN_VALUE);
-            this.minHeap.reHeapify(new heapUriNode(old.getKey()));
-            minHeap.remove();
-            //removed Old doc from the heap
+
             for (String word : old.getWords()) {//delete all trace of old doc from the TRIE
                 Object obj = trie.delete(word, old.getKey());
                 assert obj != null : "Old doc word should have been in the tree for deletion with specified document";
@@ -232,8 +285,10 @@ public class DocumentStoreImpl implements DocumentStore {
                     trie.delete(word, doc.getKey());
                 }
                 doc.setLastUseTime(Long.MIN_VALUE);
-                minHeap.reHeapify(new heapUriNode(doc.getKey()));
+                nodeHashMap.get(doc.getKey()).setLastUseTime(doc.getLastUseTime());
+                minHeap.reHeapify(nodeHashMap.get(doc.getKey()));
                 minHeap.remove();//remove new doc from the heap
+                nodeHashMap.remove(doc.getKey());//remove node from hashmap, node is no longer in minheap dont need to keep track of object
                 this.num_current_docs_used--;//update memory status for # of docs
                 this.num_total_bytes_used -= new_doc_mem; // remove the new doc memory size from docStores memory status
                 manageMemoryOnPut(old, oldformat);
@@ -241,7 +296,10 @@ public class DocumentStoreImpl implements DocumentStore {
                     trie.put(word, old.getKey());
                 }
                 old.setLastUseTime(System.nanoTime());
-                minHeap.insert(new heapUriNode(old.getKey()));//put old doc into the heap with new time
+                Node n = new Node(old.getKey());
+                n.setLastUseTime(old.getLastUseTime());
+                nodeHashMap.put(old.getKey(),n);
+                minHeap.insert(nodeHashMap.get(old.getKey()));//put old doc into the heap with new time
                 //update docStore memory status
                 this.num_current_docs_used++;
                 this.num_total_bytes_used += oldMem;
@@ -253,8 +311,10 @@ public class DocumentStoreImpl implements DocumentStore {
                     trie.delete(word, doc.getKey());
                 }
                 doc.setLastUseTime(Long.MIN_VALUE);
-                minHeap.reHeapify(new heapUriNode(doc.getKey()));
+                nodeHashMap.get(doc.getKey()).setLastUseTime(doc.getLastUseTime());
+                minHeap.reHeapify(nodeHashMap.get(doc.getKey()));
                 minHeap.remove();
+                nodeHashMap.remove(doc.getKey());//remove node from hashmap, node is no longer in minheap don't need to keep track of object
                 this.num_current_docs_used--;
                 this.num_current_docs_used -= new_doc_mem;
                 return btree.put((URI) u, null) == doc;
@@ -307,18 +367,21 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     private void removeAllTraceOfLeastUsedDoc() {
-        URI leastUsedDoc = minHeap.remove();
+        Node leastUsedDoc = minHeap.remove();
+        nodeHashMap.remove(leastUsedDoc.getUri());
         this.num_current_docs_used--;
-        if (btree.get(leastUsedDoc).getDocumentTxt() != null) {
-            this.num_total_bytes_used -= btree.get(leastUsedDoc).getDocumentTxt().getBytes().length;
+        if (btree.get(leastUsedDoc.getUri()).getDocumentTxt() != null) {
+            this.num_total_bytes_used -= btree.get(leastUsedDoc.getUri()).getDocumentTxt().getBytes().length;
         } else {
-            this.num_total_bytes_used -= btree.get(leastUsedDoc).getDocumentBinaryData().length;
+            this.num_total_bytes_used -= btree.get(leastUsedDoc.getUri()).getDocumentBinaryData().length;
         }
         try {
-            btree.moveToDisk(leastUsedDoc); //Least used doc is moved out of memory and into disk
+            btree.moveToDisk(leastUsedDoc.getUri()); //Least used doc is moved out of memory and into disk
         } catch (Exception e) {
             e.printStackTrace();
         }
+        //Add URI to hashset of URI's offloaded to disk, in order to re add to heap when it is entered into memory on a get
+        uriOnDisk.add(leastUsedDoc.getUri());
     }
 
     /**
@@ -329,8 +392,12 @@ public class DocumentStoreImpl implements DocumentStore {
     public Document get(URI uri) {
         Document gotDoc = btree.get(uri);
         if (gotDoc != null) {
+            if(uriOnDisk.contains(gotDoc.getKey())){
+                addOldToHeap(gotDoc);
+            }
             gotDoc.setLastUseTime(System.nanoTime());
-            minHeap.reHeapify(gotDoc.getKey());
+            nodeHashMap.get(gotDoc.getKey()).setLastUseTime(gotDoc.getLastUseTime());
+            minHeap.reHeapify(nodeHashMap.get(gotDoc.getKey()));
         }
         return gotDoc;
     }
@@ -361,9 +428,14 @@ public class DocumentStoreImpl implements DocumentStore {
                 f = DocumentFormat.BINARY;
                 mem = temp.getDocumentBinaryData().length;
             }
+            if(uriOnDisk.contains(temp.getKey())){
+                addOldToHeap(temp);
+            }
             temp.setLastUseTime(Long.MIN_VALUE);
-            minHeap.reHeapify(temp.getKey());
+            nodeHashMap.get(temp.getKey()).setLastUseTime(temp.getLastUseTime());
+            minHeap.reHeapify(nodeHashMap.get(temp.getKey()));
             minHeap.remove();
+            nodeHashMap.remove(temp.getKey());
             this.num_current_docs_used--;
             this.num_total_bytes_used -= mem;
             Function undoDeleteLambda = (u) -> {
@@ -372,7 +444,10 @@ public class DocumentStoreImpl implements DocumentStore {
                     trie.put(w, temp.getKey());
                 }
                 temp.setLastUseTime(System.nanoTime());
-                minHeap.insert(temp.getKey());
+                Node n = new Node(temp.getKey());
+                n.setLastUseTime(temp.getLastUseTime());
+                nodeHashMap.put(temp.getKey(),n);
+                minHeap.insert(nodeHashMap.get(temp.getKey()));
                 this.num_current_docs_used++;
                 this.num_total_bytes_used += mem;
                 return btree.put((URI) u, (DocumentImpl) temp) == null;
@@ -461,11 +536,15 @@ public class DocumentStoreImpl implements DocumentStore {
         List<Document> matching_docs = new ArrayList<>();
         long time = System.nanoTime();
         for (URI u : temp_list) {
+            if(uriOnDisk.contains(btree.get(u).getKey())){
+                addOldToHeap(btree.get(u));
+                uriOnDisk.remove(btree.get(u).getKey());
+            }
             btree.get(u).setLastUseTime(time);
-            minHeap.reHeapify(u);
+            nodeHashMap.get(u).setLastUseTime(btree.get(u).getLastUseTime());
+            minHeap.reHeapify(nodeHashMap.get(u));
             matching_docs.add(btree.get(u));
         }
-        Collections.reverse(matching_docs);
         return matching_docs;
     }
 
@@ -505,11 +584,15 @@ public class DocumentStoreImpl implements DocumentStore {
         List<Document> matching_docs = new ArrayList<>();
         long time = System.nanoTime();
         for (URI u : listOfDocs) {
+            if(uriOnDisk.contains(btree.get(u).getKey())){
+                addOldToHeap(btree.get(u));
+                uriOnDisk.remove(btree.get(u).getKey());
+            }
             btree.get(u).setLastUseTime(time);
-            minHeap.reHeapify(u);
+            nodeHashMap.get(u).setLastUseTime(btree.get(u).getLastUseTime());
+            minHeap.reHeapify(nodeHashMap.get(u));
             matching_docs.add(btree.get(u));
         }
-        Collections.reverse(matching_docs);
         return matching_docs;
     }
 
@@ -544,8 +627,10 @@ public class DocumentStoreImpl implements DocumentStore {
                 trie.delete(w, u);
             }
             btree.get(u).setLastUseTime(Long.MIN_VALUE);
-            minHeap.reHeapify(u);
+            nodeHashMap.get(u).setLastUseTime(btree.get(u).getLastUseTime());
+            minHeap.reHeapify(nodeHashMap.get(u));
             minHeap.remove();//remove from the Min Heap
+            nodeHashMap.remove(u);
             this.btree.put(u, null);//remove from the btree
             this.num_current_docs_used--;
             this.num_total_bytes_used -= mem;
@@ -569,7 +654,10 @@ public class DocumentStoreImpl implements DocumentStore {
                     trie.put(w, doc.getKey());
                 }
                 doc.setLastUseTime(time);
-                minHeap.insert(doc.getKey());
+                Node n = new Node(doc.getKey());
+                n.setLastUseTime(doc.getLastUseTime());
+                nodeHashMap.put(doc.getKey(),n);
+                minHeap.insert(nodeHashMap.get(doc.getKey()));
                 this.num_current_docs_used++;
                 this.num_total_bytes_used += mem;
                 return this.btree.put((URI) u, (DocumentImpl) doc) == null;
@@ -612,8 +700,10 @@ public class DocumentStoreImpl implements DocumentStore {
                 trie.delete(w, u);
             }
             btree.get(u).setLastUseTime(Long.MIN_VALUE);
-            minHeap.reHeapify(u);
+            nodeHashMap.get(u).setLastUseTime(btree.get(u).getLastUseTime());
+            minHeap.reHeapify(nodeHashMap.get(u));
             minHeap.remove();
+            nodeHashMap.remove(u);
             this.num_current_docs_used--;
             this.num_total_bytes_used -= mem;
             this.btree.put(u, null);
@@ -636,7 +726,10 @@ public class DocumentStoreImpl implements DocumentStore {
                     trie.put(w, doc.getKey());
                 }
                 doc.setLastUseTime(time);
-                minHeap.insert(doc.getKey());
+                Node n = new Node(doc.getKey());
+                n.setLastUseTime(doc.getLastUseTime());
+                nodeHashMap.put(doc.getKey(),n);
+                minHeap.insert(nodeHashMap.get(doc.getKey()));
                 this.num_current_docs_used++;
                 this.num_total_bytes_used += mem;
                 return this.btree.put((URI) u, (DocumentImpl) doc) == null;

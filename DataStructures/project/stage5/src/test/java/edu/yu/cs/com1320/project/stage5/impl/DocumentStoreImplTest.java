@@ -202,7 +202,7 @@ class DocumentStoreImplTest {
         URI u = URI.create("Extrashouldbeherebottomofheap");
         dstore.put(new ByteArrayInputStream(generateRandomByteArray(1)), u, DocumentStore.DocumentFormat.BINARY);
         assertEquals(dstore.get(u).getKey(), u);
-        assertNull(dstore.get(docArray.get(0)));
+        assertNotNull(dstore.get(docArray.get(0)));
         //put multiple over the limit
         ArrayList<URI> newUri = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
@@ -215,7 +215,7 @@ class DocumentStoreImplTest {
             assertNotNull(dstore.get(p));
         }
         for (URI p : docArray) {
-            assertNull(dstore.get(p));
+            assertNotNull(dstore.get(p)); //stage 5 all stay in now since they are offloaded to disk
         }
     }
 
@@ -237,7 +237,7 @@ class DocumentStoreImplTest {
         URI u = URI.create("Extrashouldbeherebottomofheap");
         dstore.put(new ByteArrayInputStream(generateRandomByteArray(1)), u, DocumentStore.DocumentFormat.BINARY);
         assertEquals(dstore.get(u).getKey(), u);
-        assertNull(dstore.get(docArray.get(0)));
+        assertNotNull(dstore.get(docArray.get(0)));
         //put multiple over the limit
         ArrayList<URI> newUri = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
@@ -250,7 +250,7 @@ class DocumentStoreImplTest {
             assertNotNull(dstore.get(p));
         }
         for (URI p : docArray) {
-            assertNull(dstore.get(p));
+            assertNotNull(dstore.get(p));
         }
     }
 
@@ -431,7 +431,7 @@ class DocumentStoreImplTest {
             System.out.println(d.getKey() + ": contains prefix 'li'");
             t.add(d.getKey());
         }
-        assertEquals(t, Arrays.asList(URI.create("text3"), URI.create("text4"), URI.create("text2"), URI.create("text1")));
+        assertEquals(Arrays.asList(URI.create("text3"), URI.create("text4"), URI.create("text2"), URI.create("text1")),t);
 
         l = dstore.searchByPrefix("foop");
         assertEquals(l, Collections.EMPTY_LIST);
