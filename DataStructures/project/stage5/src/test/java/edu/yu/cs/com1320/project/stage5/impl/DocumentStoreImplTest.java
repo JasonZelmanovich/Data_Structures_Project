@@ -41,15 +41,15 @@ class DocumentStoreImplTest {
         u3 = URI.create("text1");
         stream3 = new ByteArrayInputStream(text1.getBytes());
 
-        text2 = "Etiam consectetur mollis fringilla. Donec eros eros, accumsan non pretium euismod, ultrices sagittis velit. Pellentesque rhoncus consectetur nibh et commodo. Maecenas ut volutpat nisl, et vehicula ante. Cras dignissim urna fringilla enim feugiat aliquam. Nam vitae orci fermentum, condimentum nisl at, rhoncus velit. Fusce quis placerat erat, eu maximus nunc. Aenean vestibulum mi eget dui congue, eu lobortis diam volutpat. In placerat tortor vel metus sagittis hendrerit. Mauris tempor consectetur ligula vitae venenatis. Nulla interdum justo orci, eu scelerisque felis placerat vel. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Phasellus quam arcu, maximus non interdum ac, commodo ac sapien.";
+        text2 = "Etiam consectetur mollis fringilla. Donec eros eros, li accumsan non pretium euismod, ultrices sagittis velit. Pellentesque rhoncus consectetur nibh et commodo. Maecenas ut volutpat nisl, et vehicula ante. Cras dignissim urna fringilla enim feugiat aliquam. Nam vitae orci fermentum, condimentum nisl at, rhoncus velit. Fusce quis placerat erat, eu maximus nunc. Aenean vestibulum mi eget dui congue, eu lobortis diam volutpat. In placerat tortor vel metus sagittis hendrerit. Mauris tempor consectetur ligula vitae venenatis. Nulla interdum justo orci, eu scelerisque felis placerat vel. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Phasellus quam arcu, maximus non interdum ac, commodo ac sapien.";
         u4 = URI.create("text2");
         stream4 = new ByteArrayInputStream(text2.getBytes());
 
-        text3 = "Sed sit amet nibh in tellus rutrum posuere. Suspendisse ornare odio augue, nec fermentum ligula pretium eget. Maecenas in turpis sed elit tristique sollicitudin quis eget nulla. Vestibulum odio tortor, posuere a diam nec, elementum fermentum mi. Praesent mattis feugiat lorem ut finibus. Quisque velit massa, feugiat sit amet egestas non, pretium a lorem. Integer sed massa bibendum, ornare ligula a, fringilla est. Maecenas eget diam sed sapien congue mattis.";
+        text3 = "Sed sit amet nibh in tellus rutrum posuere. li li Suspendisse ornare odio augue, nec fermentum ligula pretium eget. Maecenas in turpis sed elit tristique sollicitudin quis eget nulla. Vestibulum odio tortor, posuere a diam nec, elementum fermentum mi. Praesent mattis feugiat lorem ut finibus. Quisque velit massa, feugiat sit amet egestas non, pretium a lorem. Integer sed massa bibendum, ornare ligula a, fringilla est. Maecenas eget diam sed sapien congue mattis.";
         u5 = URI.create("text3");
         stream5 = new ByteArrayInputStream(text3.getBytes());
 
-        text4 = "Donec volutpat erat sed ante convallis, vel commodo dolor eleifend. Vivamus sed fringilla nisi, iaculis semper orci. Nulla id fringilla urna. Nam venenatis libero quis ipsum cursus elementum. Aliquam ultrices, velit ac eleifend suscipit, ex mi tincidunt tellus, porttitor accumsan lectus sem id mi. Maecenas nisi dui, maximus eget mauris sit amet, mattis blandit dolor. Proin efficitur orci purus, eget iaculis justo dignissim a. Sed eleifend sem ac lectus pretium, id malesuada purus volutpat. Cras porttitor varius est, eu malesuada augue dictum eu. Cras nisl enim, aliquam nec arcu eget, dapibus cursus arcu. Etiam fringilla accumsan cursus. In ac finibus enim, nec accumsan elit.";
+        text4 = "Donec volutpat erat sed ante convallis, vel li li li commodo dolor eleifend. Vivamus sed fringilla nisi, iaculis semper orci. Nulla id fringilla urna. Nam venenatis libero quis ipsum cursus elementum. Aliquam ultrices, velit ac eleifend suscipit, ex mi tincidunt tellus, porttitor accumsan lectus sem id mi. Maecenas nisi dui, maximus eget mauris sit amet, mattis blandit dolor. Proin efficitur orci purus, eget iaculis justo dignissim a. Sed eleifend sem ac lectus pretium, id malesuada purus volutpat. Cras porttitor varius est, eu malesuada augue dictum eu. Cras nisl enim, aliquam nec arcu eget, dapibus cursus arcu. Etiam fringilla accumsan cursus. In ac finibus enim, nec accumsan elit.";
         u6 = URI.create("text4");
         stream6 = new ByteArrayInputStream(text4.getBytes());
 
@@ -373,13 +373,13 @@ class DocumentStoreImplTest {
             assertEquals(d.getKey(), URI.create("text3"));
         }
 
-        l = dstore.search("Lorem");
+        l = dstore.search("li");
         ArrayList<URI> t = new ArrayList<>();
         for (Document d : l) {
-            System.out.println("Lorem search: " + d.getKey());
+            System.out.println("li: " + d.getKey());
             t.add(d.getKey());
         }
-        assertEquals(Arrays.asList(URI.create("text2"), URI.create("text1")),t);
+        assertEquals(Arrays.asList(URI.create("text4"), URI.create("text3"), URI.create("text2")),t);
 
         l = dstore.search("sit");
         t = new ArrayList<>();
@@ -478,7 +478,7 @@ class DocumentStoreImplTest {
             t.add(d.getKey());
             System.out.println(d.getKey());
         }
-        assertEquals(t, Arrays.asList(URI.create("text2"), URI.create("text1")));
+        assertEquals(t, Arrays.asList(URI.create("text1"), URI.create("text2")));
         dstore.undo(URI.create("text2"));
         l = dstore.searchByPrefix("");
         t = new ArrayList<>();
@@ -535,4 +535,5 @@ class DocumentStoreImplTest {
         dstore.deleteAllWithPrefix("");//delete all documents
         assertEquals(dstore.deleteAllWithPrefix("a"), Collections.EMPTY_SET);
     }
+
 }

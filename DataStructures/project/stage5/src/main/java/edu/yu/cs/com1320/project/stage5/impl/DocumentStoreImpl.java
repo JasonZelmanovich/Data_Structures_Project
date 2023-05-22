@@ -20,6 +20,115 @@ import java.util.*;
 import java.util.function.Function;
 
 public class DocumentStoreImpl implements DocumentStore {
+    private class Node implements Comparable<Node>{
+        URI uri;
+        private long nanoTime;
+        public Node(URI u){
+            this.uri = u;
+            this.nanoTime = 0;
+        }
+        public URI getUri(){
+            return this.uri;
+        }
+        /**
+         * Compares this object with the specified object for order.  Returns a
+         * negative integer, zero, or a positive integer as this object is less
+         * than, equal to, or greater than the specified object.
+         *
+         * <p>The implementor must ensure {@link Integer#signum
+         * signum}{@code (x.compareTo(y)) == -signum(y.compareTo(x))} for
+         * all {@code x} and {@code y}.  (This implies that {@code
+         * x.compareTo(y)} must throw an exception if and only if {@code
+         * y.compareTo(x)} throws an exception.)
+         *
+         * <p>The implementor must also ensure that the relation is transitive:
+         * {@code (x.compareTo(y) > 0 && y.compareTo(z) > 0)} implies
+         * {@code x.compareTo(z) > 0}.
+         *
+         * <p>Finally, the implementor must ensure that {@code
+         * x.compareTo(y)==0} implies that {@code signum(x.compareTo(z))
+         * == signum(y.compareTo(z))}, for all {@code z}.
+         *
+         * @param o the object to be compared.
+         * @return a negative integer, zero, or a positive integer as this object
+         * is less than, equal to, or greater than the specified object.
+         * @throws NullPointerException if the specified object is null
+         * @throws ClassCastException   if the specified object's type prevents it
+         *                              from being compared to this object.
+         * @apiNote It is strongly recommended, but <i>not</i> strictly required that
+         * {@code (x.compareTo(y)==0) == (x.equals(y))}.  Generally speaking, any
+         * class that implements the {@code Comparable} interface and violates
+         * this condition should clearly indicate this fact.  The recommended
+         * language is "Note: this class has a natural ordering that is
+         * inconsistent with equals."
+         */
+        @Override
+        public int compareTo(Node o) {
+            if (o == null) {
+                throw new NullPointerException();
+            }
+            if (btree.get(this.uri).getLastUseTime() < btree.get(o.getUri()).getLastUseTime()) {
+                return -1;
+            } else if (btree.get(this.uri).getLastUseTime() > btree.get(o.getUri()).getLastUseTime()) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Node node = (Node) o;
+            return Objects.equals(uri, node.getUri());
+        }
+        @Override
+        public int hashCode() {
+            return Objects.hash(uri);
+        }
+    }
+    private HashMap<URI,Node> nodeHashMap;
+    private HashSet<URI> uriOnDisk;
+    private StackImpl<Undoable> cmdStack;
+    private BTreeImpl<URI, DocumentImpl> btree;
+    private TrieImpl<URI> trie;
+    private MinHeapImpl<Node> minHeap;
+    private PersistenceManager pm;
+    private int doc_count_limit;
+    private int doc_bytes_limit;
+    private int num_current_docs_used;
+    private int num_total_bytes_used;
+
+    public DocumentStoreImpl() {
+        uriOnDisk = new HashSet<>();
+        nodeHashMap = new HashMap<>();
+        btree = new BTreeImpl<>();
+        cmdStack = new StackImpl<>();
+        trie = new TrieImpl<>();
+        minHeap = new MinHeapImpl<>();
+        this.num_current_docs_used = 0;
+        this.num_total_bytes_used = 0;
+        this.doc_bytes_limit = -1;
+        this.doc_count_limit = -1;
+        pm = new DocumentPersistenceManager(null);
+        btree.setPersistenceManager(pm);
+    }
+
+    public DocumentStoreImpl(File baseDir){
+        uriOnDisk = new HashSet<>();
+        nodeHashMap = new HashMap<>();
+        btree = new BTreeImpl<>();
+        cmdStack = new StackImpl<>();
+        trie = new TrieImpl<>();
+        minHeap = new MinHeapImpl<>();
+        this.num_current_docs_used = 0;
+        this.num_total_bytes_used = 0;
+        this.doc_bytes_limit = -1;
+        this.doc_count_limit = -1;
+        pm = new DocumentPersistenceManager(baseDir);
+        btree.setPersistenceManager(pm);
+    }
+
     /**
      * @param input  the document being put
      * @param uri    unique identifier for the document
@@ -84,47 +193,6 @@ public class DocumentStoreImpl implements DocumentStore {
         byte[] read = input.readAllBytes();
         return storeDocument(format, read, uri);
     }
-    private HashMap<URI,Node> nodeHashMap;
-    private HashSet<URI> uriOnDisk;
-    private StackImpl<Undoable> cmdStack;
-    private BTreeImpl<URI, DocumentImpl> btree;
-    private TrieImpl<URI> trie;
-    private MinHeapImpl<Node> minHeap;
-    private PersistenceManager pm;
-    private int doc_count_limit;
-    private int doc_bytes_limit;
-    private int num_current_docs_used;
-    private int num_total_bytes_used;
-
-    public DocumentStoreImpl() {
-        uriOnDisk = new HashSet<>();
-        nodeHashMap = new HashMap<>();
-        btree = new BTreeImpl<>();
-        cmdStack = new StackImpl<>();
-        trie = new TrieImpl<>();
-        minHeap = new MinHeapImpl<>();
-        this.num_current_docs_used = 0;
-        this.num_total_bytes_used = 0;
-        this.doc_bytes_limit = -1;
-        this.doc_count_limit = -1;
-        pm = new DocumentPersistenceManager(null);
-        btree.setPersistenceManager(pm);
-    }
-
-    public DocumentStoreImpl(File baseDir){
-        uriOnDisk = new HashSet<>();
-        nodeHashMap = new HashMap<>();
-        btree = new BTreeImpl<>();
-        cmdStack = new StackImpl<>();
-        trie = new TrieImpl<>();
-        minHeap = new MinHeapImpl<>();
-        this.num_current_docs_used = 0;
-        this.num_total_bytes_used = 0;
-        this.doc_bytes_limit = -1;
-        this.doc_count_limit = -1;
-        pm = new DocumentPersistenceManager(baseDir);
-        btree.setPersistenceManager(pm);
-    }
 
     /**
      * @param f      - the requested format of the document for the input to be stored in
@@ -132,7 +200,6 @@ public class DocumentStoreImpl implements DocumentStore {
      * @param uri    - the proper uri associated with the given document
      * @return the old hashcode if there was one, if no previous value return 0
      */
-
     private int storeDocument(DocumentFormat f, byte[] bArray, URI uri) {
         DocumentImpl doc;
         Document old;
@@ -165,10 +232,10 @@ public class DocumentStoreImpl implements DocumentStore {
             nodeHashMap.put(old.getKey(), n);
             uriOnDisk.remove(old.getKey());
             btree.get(uri).setLastUseTime(Long.MIN_VALUE);
+            minHeap.insert(n);
             minHeap.reHeapify(nodeHashMap.get(old.getKey()));
             minHeap.remove();
-        }
-        if (btree.get(uri) != null) {
+        }else if (btree.get(uri) != null) {
             btree.get(uri).setLastUseTime(Long.MIN_VALUE);
             minHeap.reHeapify(nodeHashMap.get(uri));
             minHeap.remove();
@@ -547,10 +614,9 @@ public class DocumentStoreImpl implements DocumentStore {
                 return btree.get(o2).wordCount(keyword) - btree.get(o1).wordCount(keyword);
             }
         };
-        List<URI> temp_list = trie.getAllSorted(keyword, docComparatorDescending);
         List<Document> matching_docs = new ArrayList<>();
         long time = System.nanoTime();
-        for (URI u : temp_list) {
+        for (URI u : trie.getAllSorted(keyword, docComparatorDescending)) {
             if(uriOnDisk.contains(btree.get(u).getKey())){
                 addOldToHeap(btree.get(u));
                 uriOnDisk.remove(btree.get(u).getKey());
@@ -591,7 +657,7 @@ public class DocumentStoreImpl implements DocumentStore {
                 for (String w : allWords2) {
                     doc2PrefCount += btree.get(o2).wordCount(w);
                 }
-                return doc1PrefCount - doc2PrefCount;
+                return doc2PrefCount - doc1PrefCount;
             }
         };
         List<URI> listOfDocs = trie.getAllWithPrefixSorted(keywordPrefix, documentComparator);
@@ -677,74 +743,6 @@ public class DocumentStoreImpl implements DocumentStore {
         }//push the CommandSet on to the stack
         cmdStack.push(cmdSet);
         return docKeys;
-    }
-
-    private class Node implements Comparable<Node>{
-        URI uri;
-        private long nanoTime;
-        public Node(URI u){
-            this.uri = u;
-            this.nanoTime = 0;
-        }
-        public URI getUri(){
-            return this.uri;
-        }
-        /**
-         * Compares this object with the specified object for order.  Returns a
-         * negative integer, zero, or a positive integer as this object is less
-         * than, equal to, or greater than the specified object.
-         *
-         * <p>The implementor must ensure {@link Integer#signum
-         * signum}{@code (x.compareTo(y)) == -signum(y.compareTo(x))} for
-         * all {@code x} and {@code y}.  (This implies that {@code
-         * x.compareTo(y)} must throw an exception if and only if {@code
-         * y.compareTo(x)} throws an exception.)
-         *
-         * <p>The implementor must also ensure that the relation is transitive:
-         * {@code (x.compareTo(y) > 0 && y.compareTo(z) > 0)} implies
-         * {@code x.compareTo(z) > 0}.
-         *
-         * <p>Finally, the implementor must ensure that {@code
-         * x.compareTo(y)==0} implies that {@code signum(x.compareTo(z))
-         * == signum(y.compareTo(z))}, for all {@code z}.
-         *
-         * @param o the object to be compared.
-         * @return a negative integer, zero, or a positive integer as this object
-         * is less than, equal to, or greater than the specified object.
-         * @throws NullPointerException if the specified object is null
-         * @throws ClassCastException   if the specified object's type prevents it
-         *                              from being compared to this object.
-         * @apiNote It is strongly recommended, but <i>not</i> strictly required that
-         * {@code (x.compareTo(y)==0) == (x.equals(y))}.  Generally speaking, any
-         * class that implements the {@code Comparable} interface and violates
-         * this condition should clearly indicate this fact.  The recommended
-         * language is "Note: this class has a natural ordering that is
-         * inconsistent with equals."
-         */
-        @Override
-        public int compareTo(Node o) {
-            if (o == null) {
-                throw new NullPointerException();
-            }
-            if (btree.get(this.uri).getLastUseTime() < btree.get(o.getUri()).getLastUseTime()) {
-                return -1;
-            } else if (btree.get(this.uri).getLastUseTime() > btree.get(o.getUri()).getLastUseTime()) {
-                return 1;
-            } else {
-                return 0;
-            }
-        }
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Node node = (Node) o;
-            return Objects.equals(uri, node.getUri());
-        }
-        @Override
-        public int hashCode() {
-            return Objects.hash(uri);
-        }
     }
 
     /**
