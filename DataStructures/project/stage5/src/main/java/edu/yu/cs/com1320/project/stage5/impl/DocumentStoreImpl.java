@@ -20,78 +20,69 @@ import java.util.*;
 import java.util.function.Function;
 
 public class DocumentStoreImpl implements DocumentStore {
-    private class Node implements Comparable<Node>{
-        URI uri;
-        private long nanoTime;
-        public Node(URI u){
-            this.uri = u;
-            this.nanoTime = 0;
+    /**
+     * @param input  the document being put
+     * @param uri    unique identifier for the document
+     * @param format indicates which type of document format is being passed
+     * @return if there is no previous doc at the given URI, return 0. If there is a previous doc, return the hashCode
+     * of the previous doc. If InputStream is null, this is a delete, and thus return either the hashCode of the deleted doc
+     * or 0 if there is no doc to delete.
+     * @throws IOException              if there is an issue reading input
+     * @throws IllegalArgumentException if uri or format are null
+     */
+    @Override
+    public int put(InputStream input, URI uri, DocumentFormat format) throws IOException {
+        if (uri == null || format == null) {
+            throw new IllegalArgumentException();
         }
-        public long getLastUseTime() {
-            return this.nanoTime;
-        }
-        public void setLastUseTime(long timeInNanoseconds) {
-            this.nanoTime = timeInNanoseconds;
-        }
-        public URI getUri(){
-            return this.uri;
-        }
-        /**
-         * Compares this object with the specified object for order.  Returns a
-         * negative integer, zero, or a positive integer as this object is less
-         * than, equal to, or greater than the specified object.
-         *
-         * <p>The implementor must ensure {@link Integer#signum
-         * signum}{@code (x.compareTo(y)) == -signum(y.compareTo(x))} for
-         * all {@code x} and {@code y}.  (This implies that {@code
-         * x.compareTo(y)} must throw an exception if and only if {@code
-         * y.compareTo(x)} throws an exception.)
-         *
-         * <p>The implementor must also ensure that the relation is transitive:
-         * {@code (x.compareTo(y) > 0 && y.compareTo(z) > 0)} implies
-         * {@code x.compareTo(z) > 0}.
-         *
-         * <p>Finally, the implementor must ensure that {@code
-         * x.compareTo(y)==0} implies that {@code signum(x.compareTo(z))
-         * == signum(y.compareTo(z))}, for all {@code z}.
-         *
-         * @param o the object to be compared.
-         * @return a negative integer, zero, or a positive integer as this object
-         * is less than, equal to, or greater than the specified object.
-         * @throws NullPointerException if the specified object is null
-         * @throws ClassCastException   if the specified object's type prevents it
-         *                              from being compared to this object.
-         * @apiNote It is strongly recommended, but <i>not</i> strictly required that
-         * {@code (x.compareTo(y)==0) == (x.equals(y))}.  Generally speaking, any
-         * class that implements the {@code Comparable} interface and violates
-         * this condition should clearly indicate this fact.  The recommended
-         * language is "Note: this class has a natural ordering that is
-         * inconsistent with equals."
-         */
-        @Override
-        public int compareTo(Node o) {
-            if (o == null) {
-                throw new NullPointerException();
+        if (input == null) {
+            DocumentImpl temp = btree.get(uri);
+            if (temp != null) {// if there was actually something to be deleted
+                this.num_current_docs_used--;
+                int mem;
+                DocumentFormat form;
+                if (temp.getDocumentTxt() != null) {
+                    mem = temp.getDocumentTxt().getBytes().length;
+                    form = DocumentFormat.TXT;
+                } else {
+                    mem = temp.getDocumentBinaryData().length;
+                    form = DocumentFormat.BINARY;
+                }
+                this.num_total_bytes_used -= mem;
+                //Check if temp was moved to disk earlier
+                if(uriOnDisk.contains(temp.getKey())){//if it was moved to disk add it back to the heap for proper removal from heap
+                    addOldToHeap(temp);
+                    uriOnDisk.remove(temp.getKey());
+                }
+                temp.setLastUseTime(Long.MIN_VALUE);
+                minHeap.reHeapify(nodeHashMap.get(temp.getKey()));
+                nodeHashMap.remove(temp.getKey());
+                minHeap.remove();
+                for (String s : temp.getWords()) {
+                    trie.delete(s, temp.getKey());
+                }
+                this.btree.put(uri, null);
+                Function undoDeleteLambda = (u) -> {
+                    manageMemoryOnPut(temp, form);//manage memory and then put the undone doc into the docStore
+                    //put the deleted doc back into the doc store
+                    this.num_current_docs_used++;
+                    this.num_total_bytes_used += mem;
+                    for (String s : temp.getWords()) {
+                        trie.put(s, temp.getKey());
+                    }
+                    Document t = btree.put((URI) u, temp);
+                    temp.setLastUseTime(System.nanoTime());
+                    Node n = new Node(temp.getKey());
+                    nodeHashMap.put(temp.getKey(),n);
+                    minHeap.insert(nodeHashMap.get(temp.getKey()));
+                    return t == null;
+                };
+                cmdStack.push(new GenericCommand<URI>(uri, undoDeleteLambda));
             }
-            if (this.getLastUseTime() < o.getLastUseTime()) {
-                return -1;
-            } else if (this.getLastUseTime() > o.getLastUseTime()) {
-                return 1;
-            } else {
-                return 0;
-            }
+            return temp == null ? 0 : temp.hashCode();
         }
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Node node = (Node) o;
-            return Objects.equals(uri, node.uri);
-        }
-        @Override
-        public int hashCode() {
-            return Objects.hash(uri);
-        }
+        byte[] read = input.readAllBytes();
+        return storeDocument(format, read, uri);
     }
     private HashMap<URI,Node> nodeHashMap;
     private HashSet<URI> uriOnDisk;
@@ -136,71 +127,6 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     /**
-     * @param input  the document being put
-     * @param uri    unique identifier for the document
-     * @param format indicates which type of document format is being passed
-     * @return if there is no previous doc at the given URI, return 0. If there is a previous doc, return the hashCode
-     * of the previous doc. If InputStream is null, this is a delete, and thus return either the hashCode of the deleted doc
-     * or 0 if there is no doc to delete.
-     * @throws IOException              if there is an issue reading input
-     * @throws IllegalArgumentException if uri or format are null
-     */
-    @Override
-    public int put(InputStream input, URI uri, DocumentFormat format) throws IOException {
-        if (uri == null || format == null) {
-            throw new IllegalArgumentException();
-        }
-        if (input == null) {
-            DocumentImpl temp = btree.put(uri, null);
-            if (temp != null) {// if there was actually something to be deleted
-                this.num_current_docs_used--;
-                int mem;
-                DocumentFormat form;
-                if (temp.getDocumentTxt() != null) {
-                    mem = temp.getDocumentTxt().getBytes().length;
-                    form = DocumentFormat.TXT;
-                } else {
-                    mem = temp.getDocumentBinaryData().length;
-                    form = DocumentFormat.BINARY;
-                }
-                this.num_total_bytes_used -= mem;
-                //Check if temp was moved to disk earlier
-                if(uriOnDisk.contains(temp.getKey())){//if it was moved to disk add it back to the heap for proper removal from heap
-                    addOldToHeap(temp);
-                    uriOnDisk.remove(temp.getKey());
-                }
-                temp.setLastUseTime(Long.MIN_VALUE);
-                nodeHashMap.get(temp.getKey()).setLastUseTime(temp.getLastUseTime());
-                minHeap.reHeapify(nodeHashMap.get(temp.getKey()));
-                nodeHashMap.remove(temp.getKey());
-                minHeap.remove();
-                for (String s : temp.getWords()) {
-                    trie.delete(s, temp.getKey());
-                }
-                Function undoDeleteLambda = (u) -> {
-                    manageMemoryOnPut(temp, form);//manage memory and then put the undone doc into the docStore
-                    //put the deleted doc back into the doc store
-                    this.num_current_docs_used++;
-                    this.num_total_bytes_used += mem;
-                    for (String s : temp.getWords()) {
-                        trie.put(s, temp.getKey());
-                    }
-                    temp.setLastUseTime(System.nanoTime());
-                    Node n = new Node(temp.getKey());
-                    n.setLastUseTime(temp.getLastUseTime());
-                    nodeHashMap.put(temp.getKey(),n);
-                    minHeap.insert(nodeHashMap.get(temp.getKey()));
-                    return btree.put((URI) u, temp) == null;
-                };
-                cmdStack.push(new GenericCommand<URI>(uri, undoDeleteLambda));
-            }
-            return temp == null ? 0 : temp.hashCode();
-        }
-        byte[] read = input.readAllBytes();
-        return storeDocument(format, read, uri);
-    }
-
-    /**
      * @param f      - the requested format of the document for the input to be stored in
      * @param bArray - the byte array of data being stored
      * @param uri    - the proper uri associated with the given document
@@ -229,23 +155,26 @@ public class DocumentStoreImpl implements DocumentStore {
         }
         this.num_total_bytes_used += memory;
         //Already inserted into trie, now btree
-        old = btree.put(uri, doc);
-        if(old != null){
-            if(uriOnDisk.contains(old.getKey())){
-                addOldToHeap(old);
-                uriOnDisk.remove(old.getKey());
-            }
-            old.setLastUseTime(Long.MIN_VALUE);
-            nodeHashMap.get(old.getKey()).setLastUseTime(old.getLastUseTime());
-            this.minHeap.reHeapify(nodeHashMap.get(old.getKey()));
-            minHeap.remove();
-            //removed Old doc from the heap
-            nodeHashMap.remove(old.getKey());
+        old = btree.get(uri);
+        if (btree.get(uri) == null) {
+            Node n = new Node(uri);
+            nodeHashMap.put(uri, n);
         }
+        if (btree.get(uri) != null && uriOnDisk.contains(old.getKey())) {
+            Node n = new Node(old.getKey());
+            nodeHashMap.put(old.getKey(), n);
+            uriOnDisk.remove(old.getKey());
+            btree.get(uri).setLastUseTime(Long.MIN_VALUE);
+            minHeap.reHeapify(nodeHashMap.get(old.getKey()));
+            minHeap.remove();
+        }
+        if (btree.get(uri) != null) {
+            btree.get(uri).setLastUseTime(Long.MIN_VALUE);
+            minHeap.reHeapify(nodeHashMap.get(uri));
+            minHeap.remove();
+        }
+        btree.put(uri, doc);
         doc.setLastUseTime(System.nanoTime());
-        Node n = new Node(uri);
-        n.setLastUseTime(btree.get(uri).getLastUseTime());
-        nodeHashMap.put(uri,n);
         this.minHeap.insert(nodeHashMap.get(uri));
         //All insertions finished
         storeDocUndoLogic(old, doc, uri, memory);//Handle deletion of OLD if necessary, create the undo lambda, check for old doc existence
@@ -254,19 +183,19 @@ public class DocumentStoreImpl implements DocumentStore {
         manageMemory();
         return tbr;
     }
+
     private void addOldToHeap(Document d){
         Node n = new Node(d.getKey());
-        n.setLastUseTime(Long.MIN_VALUE);
-        nodeHashMap.put(d.getKey(),n);
-        minHeap.insert(nodeHashMap.get(d.getKey()));
+        nodeHashMap.put(d.getKey(), n);
+        minHeap.insert(n);
     }
+
     private void storeDocUndoLogic(Document old, Document doc, URI uri, int newMem) {
         Function undoReplaceLambda;
         DocumentFormat oldformat;
         int new_doc_mem = newMem;
         int oldMem;
         if (old != null) { //If an old document was being replaced
-
             for (String word : old.getWords()) {//delete all trace of old doc from the TRIE
                 Object obj = trie.delete(word, old.getKey());
                 assert obj != null : "Old doc word should have been in the tree for deletion with specified document";
@@ -284,15 +213,16 @@ public class DocumentStoreImpl implements DocumentStore {
                 for (String word : doc.getWords()) {//remove new doc from the trie
                     trie.delete(word, doc.getKey());
                 }
-                if(uriOnDisk.contains(doc.getKey())){
-                    addOldToHeap(doc);
+                if (uriOnDisk.contains(doc.getKey())) {
+                    Node n = new Node(doc.getKey());
+                    nodeHashMap.put(doc.getKey(), n);
                     uriOnDisk.remove(doc.getKey());
                 }
                 doc.setLastUseTime(Long.MIN_VALUE);
-                nodeHashMap.get(doc.getKey()).setLastUseTime(doc.getLastUseTime());
                 minHeap.reHeapify(nodeHashMap.get(doc.getKey()));
-                minHeap.remove();//remove new doc from the heap
-                nodeHashMap.remove(doc.getKey());//remove node from hashmap, node is no longer in minheap dont need to keep track of object
+                minHeap.remove();
+                nodeHashMap.remove(doc.getKey());
+                Document temp = btree.put((URI) u, (DocumentImpl) old);
                 this.num_current_docs_used--;//update memory status for # of docs
                 this.num_total_bytes_used -= new_doc_mem; // remove the new doc memory size from docStores memory status
                 manageMemoryOnPut(old, oldformat);
@@ -301,34 +231,55 @@ public class DocumentStoreImpl implements DocumentStore {
                 }
                 old.setLastUseTime(System.nanoTime());
                 Node n = new Node(old.getKey());
-                n.setLastUseTime(old.getLastUseTime());
-                nodeHashMap.put(old.getKey(),n);
+                nodeHashMap.put(old.getKey(), n);
                 minHeap.insert(nodeHashMap.get(old.getKey()));//put old doc into the heap with new time
                 //update docStore memory status
                 this.num_current_docs_used++;
                 this.num_total_bytes_used += oldMem;
-                return btree.put((URI) u, (DocumentImpl) old) == doc; //replace btree with what was originally there
+                return temp == doc; //replace btree with what was originally there
             };
-        } else { // undo if nothing was deleted as result of docs insertion ( just remove doc )
+        } else { // undo if nothing was deleted as result of docs insertion ( just remove doc that was inserted)
             undoReplaceLambda = (u) -> {
                 for (String word : doc.getWords()) {
                     trie.delete(word, doc.getKey());
                 }
-                if(uriOnDisk.contains(doc.getKey())){
-                    addOldToHeap(doc);
+                if (uriOnDisk.contains(doc.getKey())) {
+                    Node n = new Node(doc.getKey());
+                    nodeHashMap.put(doc.getKey(), n);
                     uriOnDisk.remove(doc.getKey());
+                    minHeap.insert(n);
+                }
+                if (btree.get(doc.getKey()) == null) {
+                    throw new IllegalStateException("This should exist in the btree");
                 }
                 doc.setLastUseTime(Long.MIN_VALUE);
-                nodeHashMap.get(doc.getKey()).setLastUseTime(doc.getLastUseTime());
                 minHeap.reHeapify(nodeHashMap.get(doc.getKey()));
                 minHeap.remove();
-                nodeHashMap.remove(doc.getKey());//remove node from hashmap, node is no longer in minheap don't need to keep track of object
+                //remove node from hashmap, node is no longer in minheap don't need to keep track of object
                 this.num_current_docs_used--;
                 this.num_current_docs_used -= new_doc_mem;
                 return btree.put((URI) u, null) == doc;
             };
         }
         cmdStack.push(new GenericCommand<URI>(uri, undoReplaceLambda));
+    }
+
+    /**
+     * @param uri the unique identifier of the document to get
+     * @return the given document
+     */
+    @Override
+    public Document get(URI uri) {
+        Document gotDoc = btree.get(uri);
+        if (gotDoc != null) {
+            if(uriOnDisk.contains(gotDoc.getKey())){
+                addOldToHeap(gotDoc);
+                uriOnDisk.remove(gotDoc.getKey());
+            }
+            gotDoc.setLastUseTime(System.nanoTime());
+            minHeap.reHeapify(nodeHashMap.get(gotDoc.getKey()));
+        }
+        return gotDoc;
     }
 
     /**
@@ -390,24 +341,6 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     /**
-     * @param uri the unique identifier of the document to get
-     * @return the given document
-     */
-    @Override
-    public Document get(URI uri) {
-        Document gotDoc = btree.get(uri);
-        if (gotDoc != null) {
-            if(uriOnDisk.contains(gotDoc.getKey())){
-                addOldToHeap(gotDoc);
-            }
-            gotDoc.setLastUseTime(System.nanoTime());
-            nodeHashMap.get(gotDoc.getKey()).setLastUseTime(gotDoc.getLastUseTime());
-            minHeap.reHeapify(nodeHashMap.get(gotDoc.getKey()));
-        }
-        return gotDoc;
-    }
-
-    /**
      * @param uri the unique identifier of the document to delete
      * @return true if the document is deleted, false if no document exists with that URI
      */
@@ -420,7 +353,7 @@ public class DocumentStoreImpl implements DocumentStore {
             return false;
         } else {
             //delete and create undo lambda for doc to be deleted from the btree, trie, and heap
-            Document temp = btree.put(uri, null);
+            Document temp = btree.get(uri);
             for (String w : temp.getWords()) {
                 trie.delete(w, temp.getKey());
             }
@@ -438,10 +371,10 @@ public class DocumentStoreImpl implements DocumentStore {
                 uriOnDisk.remove(temp.getKey());
             }
             temp.setLastUseTime(Long.MIN_VALUE);
-            nodeHashMap.get(temp.getKey()).setLastUseTime(temp.getLastUseTime());
             minHeap.reHeapify(nodeHashMap.get(temp.getKey()));
             minHeap.remove();
             nodeHashMap.remove(temp.getKey());
+            btree.put(uri, null);
             this.num_current_docs_used--;
             this.num_total_bytes_used -= mem;
             Function undoDeleteLambda = (u) -> {
@@ -449,18 +382,94 @@ public class DocumentStoreImpl implements DocumentStore {
                 for (String w : temp.getWords()) {
                     trie.put(w, temp.getKey());
                 }
+                Document t = btree.put((URI) u, (DocumentImpl) temp);
                 temp.setLastUseTime(System.nanoTime());
                 Node n = new Node(temp.getKey());
-                n.setLastUseTime(temp.getLastUseTime());
                 nodeHashMap.put(temp.getKey(),n);
                 minHeap.insert(nodeHashMap.get(temp.getKey()));
                 this.num_current_docs_used++;
                 this.num_total_bytes_used += mem;
-                return btree.put((URI) u, (DocumentImpl) temp) == null;
+                return t == null;
             };
             cmdStack.push(new GenericCommand<URI>(uri, undoDeleteLambda));
             return true;
         }
+    }
+
+    /**
+     * Completely remove any trace of any document which contains the given keyword
+     * Search is CASE SENSITIVE.
+     *
+     * @param keyword
+     * @return a Set of URIs of the documents that were deleted.
+     */
+    @Override
+    public Set<URI> deleteAll(String keyword) {
+        Set<URI> docKeys = trie.deleteAll(keyword);
+        Set<Document> docsToBeRemoved = new HashSet<>();
+        for(URI u : docKeys){
+            docsToBeRemoved.add(btree.get(u));
+        }
+        if (docsToBeRemoved.size() == 0) {
+            return Collections.emptySet();
+        }
+        for (URI u : docKeys) {
+            int mem;
+            DocumentFormat f;
+            if(btree.get(u).getDocumentTxt() != null){//get doc format
+                f = DocumentFormat.TXT;
+                mem = btree.get(u).getDocumentTxt().getBytes().length;
+            }else{
+                f = DocumentFormat.BINARY;
+                mem = btree.get(u).getDocumentBinaryData().length;
+            }
+            for (String w : btree.get(u).getWords()) {//remove the doc to be deleted from the trie
+                trie.delete(w, u);
+            }
+            if(uriOnDisk.contains(u)){
+                addOldToHeap(btree.get(u));
+                uriOnDisk.remove(u);
+            }
+            btree.get(u).setLastUseTime(Long.MIN_VALUE);
+            minHeap.reHeapify(nodeHashMap.get(u));
+            minHeap.remove();//remove from the Min Heap
+            nodeHashMap.remove(u);
+            this.btree.put(u, null);//remove from the btree
+            this.num_current_docs_used--;
+            this.num_total_bytes_used -= mem;
+        }
+        //undo logic for CommandSet create a set of genericCommands to undo each deletion of the document then add the set to CommandSet
+        CommandSet<URI> cmdSet = new CommandSet<>();
+        long time = System.nanoTime();//all the docs going back should have the same nano time per piazza
+        for (Document doc : docsToBeRemoved) {
+            int mem;
+            DocumentFormat f;
+            if(doc.getDocumentTxt() != null){//get doc format
+                f = DocumentFormat.TXT;
+                mem = doc.getDocumentTxt().getBytes().length;
+            }else{
+                f = DocumentFormat.BINARY;
+                mem = doc.getDocumentBinaryData().length;
+            }
+            Function undoDeletion = (u) -> {
+                manageMemoryOnPut(doc, f);
+                for (String w : doc.getWords()) {
+                    trie.put(w, doc.getKey());
+                }
+                Document t = this.btree.put((URI) u, (DocumentImpl) doc);
+                doc.setLastUseTime(time);
+                Node n = new Node(doc.getKey());
+                nodeHashMap.put(doc.getKey(),n);
+                minHeap.insert(nodeHashMap.get(doc.getKey()));
+                this.num_current_docs_used++;
+                this.num_total_bytes_used += mem;
+                return t == null;
+            };
+            cmdSet.addCommand(new GenericCommand<>(doc.getKey(), undoDeletion));
+        }
+        //push the CommandSet on to the stack
+        cmdStack.push(cmdSet);
+        return docKeys;
     }
 
     /**
@@ -547,7 +556,6 @@ public class DocumentStoreImpl implements DocumentStore {
                 uriOnDisk.remove(btree.get(u).getKey());
             }
             btree.get(u).setLastUseTime(time);
-            nodeHashMap.get(u).setLastUseTime(btree.get(u).getLastUseTime());
             minHeap.reHeapify(nodeHashMap.get(u));
             matching_docs.add(btree.get(u));
         }
@@ -595,88 +603,10 @@ public class DocumentStoreImpl implements DocumentStore {
                 uriOnDisk.remove(btree.get(u).getKey());
             }
             btree.get(u).setLastUseTime(time);
-            nodeHashMap.get(u).setLastUseTime(btree.get(u).getLastUseTime());
             minHeap.reHeapify(nodeHashMap.get(u));
             matching_docs.add(btree.get(u));
         }
         return matching_docs;
-    }
-
-    /**
-     * Completely remove any trace of any document which contains the given keyword
-     * Search is CASE SENSITIVE.
-     *
-     * @param keyword
-     * @return a Set of URIs of the documents that were deleted.
-     */
-    @Override
-    public Set<URI> deleteAll(String keyword) {
-        Set<URI> docKeys = trie.deleteAll(keyword);
-        Set<Document> docsToBeRemoved = new HashSet<>();
-        for(URI u : docKeys){
-            docsToBeRemoved.add(btree.get(u));
-        }
-        if (docsToBeRemoved.size() == 0) {
-            return Collections.emptySet();
-        }
-        for (URI u : docKeys) {
-            int mem;
-            DocumentFormat f;
-            if(btree.get(u).getDocumentTxt() != null){//get doc format
-                f = DocumentFormat.TXT;
-                mem = btree.get(u).getDocumentTxt().getBytes().length;
-            }else{
-                f = DocumentFormat.BINARY;
-                mem = btree.get(u).getDocumentBinaryData().length;
-            }
-            for (String w : btree.get(u).getWords()) {//remove the doc to be deleted from the trie
-                trie.delete(w, u);
-            }
-            if(uriOnDisk.contains(u)){
-                addOldToHeap(btree.get(u));
-                uriOnDisk.remove(u);
-            }
-            btree.get(u).setLastUseTime(Long.MIN_VALUE);
-            nodeHashMap.get(u).setLastUseTime(btree.get(u).getLastUseTime());
-            minHeap.reHeapify(nodeHashMap.get(u));
-            minHeap.remove();//remove from the Min Heap
-            nodeHashMap.remove(u);
-            this.btree.put(u, null);//remove from the btree
-            this.num_current_docs_used--;
-            this.num_total_bytes_used -= mem;
-        }
-        //undo logic for CommandSet create a set of genericCommands to undo each deletion of the document then add the set to CommandSet
-        CommandSet<URI> cmdSet = new CommandSet<>();
-        long time = System.nanoTime();//all the docs going back should have the same nano time per piazza
-        for (Document doc : docsToBeRemoved) {
-            int mem;
-            DocumentFormat f;
-            if(doc.getDocumentTxt() != null){//get doc format
-                f = DocumentFormat.TXT;
-                mem = doc.getDocumentTxt().getBytes().length;
-            }else{
-                f = DocumentFormat.BINARY;
-                mem = doc.getDocumentBinaryData().length;
-            }
-            Function undoDeletion = (u) -> {
-                manageMemoryOnPut(doc, f);
-                for (String w : doc.getWords()) {
-                    trie.put(w, doc.getKey());
-                }
-                doc.setLastUseTime(time);
-                Node n = new Node(doc.getKey());
-                n.setLastUseTime(doc.getLastUseTime());
-                nodeHashMap.put(doc.getKey(),n);
-                minHeap.insert(nodeHashMap.get(doc.getKey()));
-                this.num_current_docs_used++;
-                this.num_total_bytes_used += mem;
-                return this.btree.put((URI) u, (DocumentImpl) doc) == null;
-            };
-            cmdSet.addCommand(new GenericCommand<>(doc.getKey(), undoDeletion));
-        }
-        //push the CommandSet on to the stack
-        cmdStack.push(cmdSet);
-        return docKeys;
     }
 
     /**
@@ -710,7 +640,6 @@ public class DocumentStoreImpl implements DocumentStore {
                 trie.delete(w, u);
             }
             btree.get(u).setLastUseTime(Long.MIN_VALUE);
-            nodeHashMap.get(u).setLastUseTime(btree.get(u).getLastUseTime());
             minHeap.reHeapify(nodeHashMap.get(u));
             minHeap.remove();
             nodeHashMap.remove(u);
@@ -735,19 +664,87 @@ public class DocumentStoreImpl implements DocumentStore {
                 for (String w : doc.getWords()) {
                     trie.put(w, doc.getKey());
                 }
+                Document t = this.btree.put((URI) u, (DocumentImpl) doc);
                 doc.setLastUseTime(time);
                 Node n = new Node(doc.getKey());
-                n.setLastUseTime(doc.getLastUseTime());
                 nodeHashMap.put(doc.getKey(),n);
                 minHeap.insert(nodeHashMap.get(doc.getKey()));
                 this.num_current_docs_used++;
                 this.num_total_bytes_used += mem;
-                return this.btree.put((URI) u, (DocumentImpl) doc) == null;
+                return t == null;
             };
             cmdSet.addCommand(new GenericCommand<URI>(doc.getKey(), undoDeletion));
         }//push the CommandSet on to the stack
         cmdStack.push(cmdSet);
         return docKeys;
+    }
+
+    private class Node implements Comparable<Node>{
+        URI uri;
+        private long nanoTime;
+        public Node(URI u){
+            this.uri = u;
+            this.nanoTime = 0;
+        }
+        public URI getUri(){
+            return this.uri;
+        }
+        /**
+         * Compares this object with the specified object for order.  Returns a
+         * negative integer, zero, or a positive integer as this object is less
+         * than, equal to, or greater than the specified object.
+         *
+         * <p>The implementor must ensure {@link Integer#signum
+         * signum}{@code (x.compareTo(y)) == -signum(y.compareTo(x))} for
+         * all {@code x} and {@code y}.  (This implies that {@code
+         * x.compareTo(y)} must throw an exception if and only if {@code
+         * y.compareTo(x)} throws an exception.)
+         *
+         * <p>The implementor must also ensure that the relation is transitive:
+         * {@code (x.compareTo(y) > 0 && y.compareTo(z) > 0)} implies
+         * {@code x.compareTo(z) > 0}.
+         *
+         * <p>Finally, the implementor must ensure that {@code
+         * x.compareTo(y)==0} implies that {@code signum(x.compareTo(z))
+         * == signum(y.compareTo(z))}, for all {@code z}.
+         *
+         * @param o the object to be compared.
+         * @return a negative integer, zero, or a positive integer as this object
+         * is less than, equal to, or greater than the specified object.
+         * @throws NullPointerException if the specified object is null
+         * @throws ClassCastException   if the specified object's type prevents it
+         *                              from being compared to this object.
+         * @apiNote It is strongly recommended, but <i>not</i> strictly required that
+         * {@code (x.compareTo(y)==0) == (x.equals(y))}.  Generally speaking, any
+         * class that implements the {@code Comparable} interface and violates
+         * this condition should clearly indicate this fact.  The recommended
+         * language is "Note: this class has a natural ordering that is
+         * inconsistent with equals."
+         */
+        @Override
+        public int compareTo(Node o) {
+            if (o == null) {
+                throw new NullPointerException();
+            }
+            if (btree.get(this.uri).getLastUseTime() < btree.get(o.getUri()).getLastUseTime()) {
+                return -1;
+            } else if (btree.get(this.uri).getLastUseTime() > btree.get(o.getUri()).getLastUseTime()) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Node node = (Node) o;
+            return Objects.equals(uri, node.getUri());
+        }
+        @Override
+        public int hashCode() {
+            return Objects.hash(uri);
+        }
     }
 
     /**

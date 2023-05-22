@@ -337,9 +337,10 @@ class DocumentStoreImplTest {
         assertThrows(IllegalStateException.class, () -> {
             dstore.undo(u1);
         });
-        assertDoesNotThrow(() -> {
-            dstore.undo(u2);
-        });
+        dstore.undo(u2);
+//        assertDoesNotThrow(() -> {
+//0
+//        });
         for (int i = 0; i < 4; i++) { //since setup adds 4 documents
             dstore.undo();
         }
