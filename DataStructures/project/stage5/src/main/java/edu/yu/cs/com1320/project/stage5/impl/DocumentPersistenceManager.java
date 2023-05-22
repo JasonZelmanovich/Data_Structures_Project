@@ -54,9 +54,7 @@ public class DocumentPersistenceManager implements PersistenceManager<URI, Docum
     private Gson gson;
     private File baseDir = null;
     public DocumentPersistenceManager(File baseDir){
-        if(baseDir.isDirectory()){
-            this.baseDir = baseDir;
-        }
+        this.baseDir = baseDir;
         builder.registerTypeAdapter(Document.class, documentJsonSerializer);
         builder.registerTypeAdapter(Document.class, documentJsonDeserializer);
         gson = builder.create();
@@ -77,8 +75,13 @@ public class DocumentPersistenceManager implements PersistenceManager<URI, Docum
         String host = uri.getHost();
         String dir;
         String jsonDoc = gson.toJson(val,Document.class);
+        File file;
         dir = getBase();
-        File file = new File(dir, host + uri.getPath() + ".json");
+        if(host != null) {
+            file = new File(dir, host + uri.getPath() + ".json");
+        }else{
+            file = new File(dir,uri.getPath() + ".json");
+        }
         if(!file.getParentFile().isDirectory()){
             file.getParentFile().mkdirs();
         }
@@ -91,7 +94,12 @@ public class DocumentPersistenceManager implements PersistenceManager<URI, Docum
     @Override
     public Document deserialize(URI uri) throws IOException {
         String host = uri.getHost();
-        File toDeserialize = new File(getBase(),host + uri.getPath() + ".json");
+        File toDeserialize;
+        if(host != null) {
+            toDeserialize = new File(getBase(),host + uri.getPath() + ".json");
+        }else{
+            toDeserialize = new File(getBase(),uri.getPath() + ".json");
+        }
         Document doc = null;
         if(toDeserialize.isFile()){
             Reader reader = Files.newBufferedReader(toDeserialize.toPath());
@@ -109,7 +117,13 @@ public class DocumentPersistenceManager implements PersistenceManager<URI, Docum
     @Override
     public boolean delete(URI uri) throws IOException {
         boolean b = false;
-        File file = new File(getBase(),uri.getHost() + uri.getPath() + ".json");
+        String host = uri.getHost();
+        File file;
+        if(host != null) {
+            file = new File(getBase(),uri.getHost() + uri.getPath() + ".json");
+        }else{
+            file = new File(getBase(),uri.getPath() + ".json");
+        }
         if(file.isFile() && file.exists()){
             b = file.delete();
         }
