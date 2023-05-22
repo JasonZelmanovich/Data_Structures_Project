@@ -284,6 +284,10 @@ public class DocumentStoreImpl implements DocumentStore {
                 for (String word : doc.getWords()) {//remove new doc from the trie
                     trie.delete(word, doc.getKey());
                 }
+                if(uriOnDisk.contains(doc.getKey())){
+                    addOldToHeap(doc);
+                    uriOnDisk.remove(doc.getKey());
+                }
                 doc.setLastUseTime(Long.MIN_VALUE);
                 nodeHashMap.get(doc.getKey()).setLastUseTime(doc.getLastUseTime());
                 minHeap.reHeapify(nodeHashMap.get(doc.getKey()));
@@ -309,6 +313,10 @@ public class DocumentStoreImpl implements DocumentStore {
             undoReplaceLambda = (u) -> {
                 for (String word : doc.getWords()) {
                     trie.delete(word, doc.getKey());
+                }
+                if(uriOnDisk.contains(doc.getKey())){
+                    addOldToHeap(doc);
+                    uriOnDisk.remove(doc.getKey());
                 }
                 doc.setLastUseTime(Long.MIN_VALUE);
                 nodeHashMap.get(doc.getKey()).setLastUseTime(doc.getLastUseTime());
