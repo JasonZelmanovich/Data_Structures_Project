@@ -16,7 +16,6 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
     private BTreeImpl.Node root = new Node(0);; //root of the B-tree
     private BTreeImpl.Node leftMostExternalNode;
     private int height; //height of the B-tree
-    private int n; //number of key-value pairs in the B-tree
     private PersistenceManager<Key, Value> pm;
     /**
      * @param key
@@ -113,7 +112,6 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         }
 
         Node newNode = this.put(this.root, key, val, this.height);
-        this.n++;
         if (newNode == null)
         {
             return null;

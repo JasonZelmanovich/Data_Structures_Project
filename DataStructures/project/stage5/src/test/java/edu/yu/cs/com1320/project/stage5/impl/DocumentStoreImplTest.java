@@ -54,10 +54,10 @@ class DocumentStoreImplTest {
         u6 = URI.create("text4");
         stream6 = new ByteArrayInputStream(text4.getBytes());
 
-//        dstore.put(stream3, u3, text);
-//        dstore.put(stream4, u4, text);
-//        dstore.put(stream5, u5, text);
-//        dstore.put(stream6, u6, text);
+        dstore.put(stream3, u3, text);
+        dstore.put(stream4, u4, text);
+        dstore.put(stream5, u5, text);
+        dstore.put(stream6, u6, text);
     }
 
     @AfterEach
@@ -537,6 +537,9 @@ class DocumentStoreImplTest {
         assertEquals(dstore.deleteAllWithPrefix("a"), Collections.EMPTY_SET);
     }
 
+    //Tests inserting a document bigger than limit
+    //Tests replacing a document with the same size - keeping everything that was in  memory still in memory
+    //Tests changing limits and removing accordingly
     @Test
     void putOverflowToDisk() throws IOException {
         Document t1 = new DocumentImpl(u3,text1,null);
@@ -545,6 +548,10 @@ class DocumentStoreImplTest {
         Document t4 = new DocumentImpl(u6,text4,null);
         int bytesUsed = t1.getDocumentTxt().getBytes().length + t2.getDocumentTxt().getBytes().length + t3.getDocumentTxt().getBytes().length + t4.getDocumentTxt().getBytes().length;
         System.out.println("bytes used: " + bytesUsed);
+        stream3 = new ByteArrayInputStream(text1.getBytes());
+        stream4 = new ByteArrayInputStream(text2.getBytes());
+        stream5 = new ByteArrayInputStream(text3.getBytes());
+        stream6 = new ByteArrayInputStream(text4.getBytes());
         dstore = new DocumentStoreImpl(new File("C:\\Users\\jason\\Desktop\\test2"));
         dstore.put(stream3, u3, text);
         dstore.put(stream4, u4, text);
@@ -561,5 +568,62 @@ class DocumentStoreImplTest {
         dstore.searchByPrefix("com"); // all docs should be removed from disk and back into memory
         dstore.put(new ByteArrayInputStream(generateRandomByteArray(2565)),URI.create("Go_Straight_to_folder"),binary);
         dstore.undo();
+        assertNull(dstore.get(URI.create("Go_Straight_to_folder")));
+        dstore.setMaxDocumentBytes(bytesUsed + 50);
+        dstore.put(new ByteArrayInputStream(generateRandomByteArray(50)),URI.create("first_one"),binary);
+        dstore.put(new ByteArrayInputStream(generateRandomByteArray(50)),URI.create("first_one"),binary);
+    }
+
+    @Test
+    void stage5variousRemovals() throws IOException {
+        Document t1 = new DocumentImpl(u3,text1,null);
+        Document t2 = new DocumentImpl(u4,text2,null);
+        Document t3 = new DocumentImpl(u5,text3,null);
+        Document t4 = new DocumentImpl(u6,text4,null);
+        int bytesUsed = t1.getDocumentTxt().getBytes().length + t2.getDocumentTxt().getBytes().length + t3.getDocumentTxt().getBytes().length + t4.getDocumentTxt().getBytes().length;
+        System.out.println("bytes used: " + bytesUsed);
+        stream3 = new ByteArrayInputStream(text1.getBytes());
+        stream4 = new ByteArrayInputStream(text2.getBytes());
+        stream5 = new ByteArrayInputStream(text3.getBytes());
+        stream6 = new ByteArrayInputStream(text4.getBytes());
+        dstore = new DocumentStoreImpl(new File("C:\\Users\\jason\\Desktop\\test2"));
+        dstore.put(stream3, u3, text);
+        dstore.put(stream4, u4, text);
+        dstore.put(stream5, u5, text);
+        dstore.put(stream6, u6, text);
+        dstore.setMaxDocumentCount(0);
+        dstore.deleteAll("Lorem");
+        assertNull(dstore.get(u3));
+        dstore.deleteAll("li");
+        assertNull(dstore.get(u4));
+        assertNull(dstore.get(u5));
+        assertNull(dstore.get(u6));
+        dstore.delete(u3);
+        assertNull(dstore.get(u3));
+        dstore.undo(u3);
+        assertEquals(t1,dstore.get(u3));
+        dstore.undo(u3);
+        dstore.put(new ByteArrayInputStream(generateRandomByteArray(23)),URI.create("ToDelete"),binary);
+    }
+
+    @Test
+    void stage5Test() throws IOException {
+        Document t1 = new DocumentImpl(u3,text1,null);
+        Document t2 = new DocumentImpl(u4,text2,null);
+        Document t3 = new DocumentImpl(u5,text3,null);
+        Document t4 = new DocumentImpl(u6,text4,null);
+        int bytesUsed = t1.getDocumentTxt().getBytes().length + t2.getDocumentTxt().getBytes().length + t3.getDocumentTxt().getBytes().length + t4.getDocumentTxt().getBytes().length;
+        System.out.println("bytes used: " + bytesUsed);
+        stream3 = new ByteArrayInputStream(text1.getBytes());
+        stream4 = new ByteArrayInputStream(text2.getBytes());
+        stream5 = new ByteArrayInputStream(text3.getBytes());
+        stream6 = new ByteArrayInputStream(text4.getBytes());
+        dstore = new DocumentStoreImpl(new File("C:\\Users\\jason\\Desktop\\test2"));
+//        dstore.put(stream3, u3, text);
+//        dstore.put(stream4, u4, text);
+//        dstore.put(stream5, u5, text);
+//        dstore.put(stream6, u6, text);
+        dstore.put(new ByteArrayInputStream(generateRandomByteArray(23)),URI.create("ToDelete"),binary);
+        dstore.setMaxDocumentCount(0);
     }
 }

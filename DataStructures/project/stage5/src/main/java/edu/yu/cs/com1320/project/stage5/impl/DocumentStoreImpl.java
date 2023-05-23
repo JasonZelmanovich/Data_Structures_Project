@@ -333,9 +333,6 @@ public class DocumentStoreImpl implements DocumentStore {
                     uriOnDisk.remove(doc.getKey());
                     minHeap.insert(n);
                 }
-                if (btree.get(doc.getKey()) == null) {
-                    throw new IllegalStateException("This should exist in the btree");
-                }
                 doc.setLastUseTime(Long.MIN_VALUE);
                 minHeap.reHeapify(nodeHashMap.get(doc.getKey()));
                 minHeap.remove();
@@ -617,7 +614,6 @@ public class DocumentStoreImpl implements DocumentStore {
                 GenericCommand<URI> temp = (GenericCommand<URI>) cmdStack.peek();
                 if (temp.getTarget().equals(uri)) {
                     boolean b = cmdStack.pop().undo();
-                    assert b == true;
                     found = true;
                     break;
                 } else {
