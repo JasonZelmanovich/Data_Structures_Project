@@ -82,7 +82,7 @@ public class DocumentStoreImpl implements DocumentStore {
         }
         @Override
         public int hashCode() {
-            return Objects.hash(uri);
+            return Math.abs(Objects.hash(uri));
         }
     }
     private HashMap<URI,Node> nodeHashMap;

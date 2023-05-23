@@ -173,7 +173,7 @@ public class DocumentImpl implements Document {
         int result = this.uri.hashCode();
         result = 31 * result + (this.txt != null ? this.txt.hashCode() : 0);
         result = 31 * result + Arrays.hashCode(this.binaryData);
-        return result;
+        return Math.abs(result);
     }
 
     @Override
