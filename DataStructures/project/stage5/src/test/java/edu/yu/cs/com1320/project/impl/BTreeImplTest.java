@@ -74,14 +74,4 @@ class BTreeImplTest {
         assertEquals(test,btree.get(web));
     }
 
-    @AfterAll
-    static void deleteAll(){
-        File f1 = new File("C:\\Users\\jason\\Desktop\\www.google.com\\testing123");
-        File f2 = new File("C:\\Users\\jason\\Desktop\\www.google.com\\NewFileTest\\yu.instructure.com");
-        f1.delete();
-        f1.getParentFile().delete();
-        f2.delete();
-        f2.getParentFile().delete();
-        f2.getParentFile().getParentFile().delete();
-    }
 }
