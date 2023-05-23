@@ -560,5 +560,6 @@ class DocumentStoreImplTest {
         dstore.search("non");
         dstore.searchByPrefix("com"); // all docs should be removed from disk and back into memory
         dstore.put(new ByteArrayInputStream(generateRandomByteArray(2565)),URI.create("Go_Straight_to_folder"),binary);
+        dstore.undo();
     }
 }

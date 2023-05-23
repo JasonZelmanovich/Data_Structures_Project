@@ -205,20 +205,23 @@ public class DocumentStoreImpl implements DocumentStore {
         if (f.equals(DocumentFormat.TXT)) {
             String s = new String(bArray);
             doc = new DocumentImpl(uri, s, null);
-            manageMemoryOnPut(doc, f);
+            if(!tooLarge(doc)){
+                manageMemoryOnPut(doc, f);
+            }
             for (String word : doc.getWords()) {
                 trie.put(word, doc.getKey());
             }
             memory = doc.getDocumentTxt().getBytes().length;
         } else if (f.equals((DocumentFormat.BINARY))) {
             doc = new DocumentImpl(uri, bArray);
-            manageMemoryOnPut(doc, f);
+            if(!tooLarge(doc)){
+                manageMemoryOnPut(doc, f);
+            }
             memory = doc.getDocumentBinaryData().length;
         } else {
             doc = null;
             return 0;
         }
-        this.num_total_bytes_used += memory;
         //Already inserted into trie, now btree
         old = btree.get(uri);
         if (btree.get(uri) == null) {
@@ -243,7 +246,14 @@ public class DocumentStoreImpl implements DocumentStore {
         this.minHeap.insert(nodeHashMap.get(uri));
         //All insertions finished
         storeDocUndoLogic(old, doc, uri, memory);//Handle deletion of OLD if necessary, create the undo lambda, check for old doc existence
-        this.num_current_docs_used++; // update docStore memory status in regard to number of documents
+        if(tooLarge(doc)){
+            doc.setLastUseTime(Long.MIN_VALUE);
+            this.minHeap.reHeapify(nodeHashMap.get(doc.getKey()));
+            removeAllTraceOfLeastUsedDoc();
+        }else{
+            this.num_total_bytes_used += memory;
+            this.num_current_docs_used++; // update docStore memory status in regard to number of documents
+        }
         int tbr = old == null ? 0 : old.hashCode();
         manageMemory();
         return tbr;
@@ -282,22 +292,31 @@ public class DocumentStoreImpl implements DocumentStore {
                     Node n = new Node(doc.getKey());
                     nodeHashMap.put(doc.getKey(), n);
                     uriOnDisk.remove(doc.getKey());
+                }else{
+                    this.num_current_docs_used--;//update memory status for # of docs
+                    this.num_total_bytes_used -= new_doc_mem; // remove the new doc memory size from docStores memory status
                 }
                 doc.setLastUseTime(Long.MIN_VALUE);
                 minHeap.reHeapify(nodeHashMap.get(doc.getKey()));
                 minHeap.remove();
                 nodeHashMap.remove(doc.getKey());
                 Document temp = btree.put((URI) u, (DocumentImpl) old);
-                this.num_current_docs_used--;//update memory status for # of docs
-                this.num_total_bytes_used -= new_doc_mem; // remove the new doc memory size from docStores memory status
-                manageMemoryOnPut(old, oldformat);
+                if(!tooLarge(old)){
+                    manageMemoryOnPut(old, oldformat);
+                }
                 for (String word : old.getWords()) { //put old doc into the trie
                     trie.put(word, old.getKey());
                 }
+
                 old.setLastUseTime(System.nanoTime());
                 Node n = new Node(old.getKey());
                 nodeHashMap.put(old.getKey(), n);
                 minHeap.insert(nodeHashMap.get(old.getKey()));//put old doc into the heap with new time
+                if(tooLarge(old)){
+                    old.setLastUseTime(Long.MIN_VALUE);
+                    minHeap.reHeapify(nodeHashMap.get(old.getKey()));//put old doc into the heap with new time
+                    removeAllTraceOfLeastUsedDoc();
+                }
                 //update docStore memory status
                 this.num_current_docs_used++;
                 this.num_total_bytes_used += oldMem;
@@ -354,22 +373,15 @@ public class DocumentStoreImpl implements DocumentStore {
         }
         return gotDoc;
     }
-    private boolean checkTooLarge(Document newDoc, DocumentFormat format){
+    private boolean tooLarge(Document newDoc){
         if (this.doc_bytes_limit != -1) {
             int memoryNeeded = 0;
-            if (format.equals(DocumentFormat.TXT)) {
+            if (newDoc.getDocumentTxt() != null) {
                 memoryNeeded += newDoc.getDocumentTxt().getBytes().length;
             } else {
                 memoryNeeded += newDoc.getDocumentBinaryData().length;
             }
             if(memoryNeeded > this.doc_bytes_limit){
-                try {
-                    btree.moveToDisk(newDoc.getKey()); //Least used doc is moved out of memory and into disk
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                this.num_total_bytes_used -= memoryNeeded;
-                this.num_current_docs_used--;
                 return true;
             }
         }
