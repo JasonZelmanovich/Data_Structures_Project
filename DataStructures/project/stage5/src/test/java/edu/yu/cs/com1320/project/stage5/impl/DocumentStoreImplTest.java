@@ -603,6 +603,7 @@ class DocumentStoreImplTest {
         dstore.undo(u3);
         assertEquals(t1,dstore.get(u3));
         dstore.undo(u3);
+        assertNotEquals(t1,dstore.get(u3));
         dstore.put(new ByteArrayInputStream(generateRandomByteArray(23)),URI.create("ToDelete"),binary);
     }
 
@@ -619,11 +620,19 @@ class DocumentStoreImplTest {
         stream5 = new ByteArrayInputStream(text3.getBytes());
         stream6 = new ByteArrayInputStream(text4.getBytes());
         dstore = new DocumentStoreImpl(new File("C:\\Users\\jason\\Desktop\\test2"));
-//        dstore.put(stream3, u3, text);
-//        dstore.put(stream4, u4, text);
-//        dstore.put(stream5, u5, text);
-//        dstore.put(stream6, u6, text);
+        dstore.put(stream3, u3, text);
+        dstore.put(stream4, u4, text);
+        dstore.put(stream5, u5, text);
+        dstore.put(stream6, u6, text);
         dstore.put(new ByteArrayInputStream(generateRandomByteArray(23)),URI.create("ToDelete"),binary);
         dstore.setMaxDocumentCount(0);
+        dstore.undo();
+        dstore.undo();
+        dstore.undo();
+        dstore.undo();
+        dstore.undo();
+        assertThrows(IllegalStateException.class, () -> {
+           dstore.undo();
+        });
     }
 }
